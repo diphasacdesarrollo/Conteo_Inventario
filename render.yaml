@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: conteo-inventario
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn inventario_project.wsgi:application"
+    preDeployCommand: "python manage.py collectstatic --noinput"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: inventario_project.settings
+
