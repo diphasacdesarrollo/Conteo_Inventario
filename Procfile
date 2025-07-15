@@ -1,0 +1,1 @@
+web: gunicorn inventario_project.wsgi

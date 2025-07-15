@@ -1,0 +1,117 @@
+<!-- templates/inventario/conteo_producto.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Conteo - Grupo {{ grupo }}</title>
+    <link rel="stylesheet" href="{% static 'inventario/css/estilos.css' %}">
+</head>
+<body>
+<div class="card card-scrollable">
+    <h1>Conteo - Grupo {{ grupo }} | Conteo N° {{ conteo }}</h1>
+
+    <!-- Selector de zona y subzona -->
+    <form method="get" action="{% url 'conteo_producto' %}">
+        <input type="hidden" name="grupo" value="{{ grupo }}">
+        <input type="hidden" name="conteo" value="{{ conteo }}">
+
+        <div class="form-select-group">
+            <div class="form-group">
+                <label for="zona">Zona:</label>
+                <select name="zona" id="zona" required>
+                    <option value="">-- Selecciona una zona --</option>
+                    {% for z in zonas %}
+                        <option value="{{ z.nombre }}" {% if z.nombre == zona_seleccionada %}selected{% endif %}>
+                            {{ z.nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="subzona">Subzona:</label>
+                <select name="subzona" id="subzona" required>
+                    <option value="">-- Selecciona una subzona --</option>
+                    {% for s in subzonas %}
+                        <option value="{{ s.id }}" {% if s.id|stringformat:"s" == subzona_seleccionada %}selected{% endif %}>
+                            {{ s.nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn">Buscar Productos</button>
+        </div>
+    </form>
+
+    {% if inventario %}
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Lote</th>
+                        <th>Subzona</th>
+                        <th>Cantidad</th>
+                        <th>Evidencia</th>
+                    </tr>
+                </thead>
+        <tbody>
+            {% for item in inventario %}
+            <tr>
+            <td>{{ item.lote.producto.nombre }}</td>
+            <td>{{ item.lote.numero_lote }}</td>
+            <td>{{ item.subzona.zona.nombre }}-{{ item.subzona.nombre }}</td>
+            <td>
+            {% with key="cantidad_"|add:item.id|stringformat:"s" %}
+                <input type="number" name="cantidad_{{ item.id }}" min="0" value="{{ datos_formulario.key|default_if_none:'' }}">
+            {% endwith %}
+            </td>
+            <td>
+                <input type="file" name="evidencia_{{ item.id }}" accept="image/*">
+            </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+
+            </table>
+        </div>
+
+        <!-- Bloque unificado para producto no encontrado -->
+        <div class="form-select-group">
+            <h3>¿Deseas reportar un producto no encontrado o fuera del sistema?</h3>
+            <div class="form-group">
+                <label for="incidencia_comentario">Comentario:</label>
+                <textarea name="incidencia_comentario" placeholder="Ej: Producto hallado pero no figura en sistema...">{{ comentario_guardado }}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="incidencia_evidencia">Evidencia:</label>
+                <input type="file" name="incidencia_evidencia" accept="image/*">
+            </div>
+        </div>
+
+        <button type="submit" class="btn">Registrar Conteo</button>
+    </form>
+    {% endif %}
+
+    <div style="margin-top: 2rem; text-align: center;">
+        <a href="{% url 'seleccionar_grupo' %}" class="btn-page">Salir y Seleccionar Otro Grupo</a>
+    </div>
+</div>
+
+<!-- Muestra de mensajes -->
+{% if messages %}
+<div class="mensajes">
+    {% for message in messages %}
+        <div class="alert {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script src="{% static 'inventario/js/conteo.js' %}"></script>
+</body>
+</html>

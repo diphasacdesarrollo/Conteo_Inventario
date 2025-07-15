@@ -1,0 +1,42 @@
+<!-- inventario/templates/inventario/seleccionar_grupo.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Conteo de Inventario</title>
+    <link rel="stylesheet" href="{% static 'inventario/css/estilos.css' %}">
+</head>
+<body>
+<div class="card card-formulario">
+    <h1>Seleccionar Grupo y N° de Conteo</h1>
+    <form id="form-seleccion" method="POST">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="grupo">Número de Grupo:</label>
+            <select id="grupo" name="grupo" required>
+            <option value="">-- Selecciona Grupo --</option>
+            <option value="1">Grupo 1</option>
+            <option value="2">Grupo 2</option>
+            <option value="3">Grupo 3</option>
+            <option value="4">Grupo 4</option>
+            <option value="5">Grupo 5</option>
+            <option value="6">Grupo 6</option>
+            </select>
+            <div class="error" id="error-grupo">Este campo es obligatorio.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="conteo">Número de Conteo:</label>
+            <input type="number" id="conteo" name="conteo" min="1" required>
+            <div class="error" id="error-conteo">Este campo es obligatorio.</div>
+        </div>
+
+        <button type="submit" class="btn">Iniciar Conteo</button>
+    </form>
+</div>
+
+<script src="{% static 'inventario/js/seleccionar.js' %}"></script>
+</body>
+</html>
