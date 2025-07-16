@@ -12,3 +12,8 @@ services:
       echo "=== APLICANDO MIGRACIONES ==="
       python manage.py migrate
     startCommand: gunicorn inventario_project.wsgi:application
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: inventario_project.settings
+      - key: DATABASE_URL
+        value: postgresql://inventario_db_1sxp_user:Iwa7y3rROLZyuUKuK9g8fHgWEwLSCiog@dpg-d1r8odruibrs73f9n2lg-a.oregon-postgres.render.com/inventario_db_1sxp
