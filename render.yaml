@@ -9,8 +9,11 @@ services:
       echo "=== COLLECTSTATIC ==="
       python manage.py collectstatic --noinput --verbosity=2
 
-      echo "=== APLICANDO MIGRACIONES ==="
+      echo "=== APLICANDO MIGRACIONES DEL SISTEMA ==="
       python manage.py migrate --fake-initial
+
+      echo "=== MARCANDO MIGRACIÓN DE INVENTARIO COMO FAKED ==="
+      python manage.py migrate inventario 0001_initial --fake
 
     startCommand: gunicorn inventario_project.wsgi:application
     envVars:
