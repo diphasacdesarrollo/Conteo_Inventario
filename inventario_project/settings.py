@@ -106,7 +106,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Para permitir servir archivos estáticos en producción
-STATICFILES_DIRS = [BASE_DIR / "static"] if DEBUG else []
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static/inventario')]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
