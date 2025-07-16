@@ -5,12 +5,13 @@ services:
     buildCommand: |
       echo "=== INSTALANDO DEPENDENCIAS ==="
       pip install -r requirements.txt
-      
+
       echo "=== EJECUTANDO COLLECTSTATIC ==="
       python manage.py collectstatic --noinput --verbosity=2
 
       echo "=== APLICANDO MIGRACIONES ==="
       python manage.py migrate --fake-initial
+
     startCommand: gunicorn inventario_project.wsgi:application
     envVars:
       - key: DJANGO_SETTINGS_MODULE
