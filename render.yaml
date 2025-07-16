@@ -3,7 +3,12 @@ services:
     name: conteo-inventario
     env: python
     buildCommand: |
+      echo "=== INSTALANDO DEPENDENCIAS ==="
       pip install -r requirements.txt
-      python manage.py collectstatic --noinput
+      
+      echo "=== EJECUTANDO COLLECTSTATIC ==="
+      python manage.py collectstatic --noinput --verbosity=2
+
+      echo "=== APLICANDO MIGRACIONES ==="
       python manage.py migrate
     startCommand: gunicorn inventario_project.wsgi:application
