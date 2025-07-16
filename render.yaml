@@ -6,16 +6,22 @@ services:
       echo "=== INSTALANDO DEPENDENCIAS ==="
       pip install -r requirements.txt
 
-      echo "=== COLLECTSTATIC ==="
+      echo "=== STATIC ==="
       python manage.py collectstatic --noinput --verbosity=2
 
-      echo "=== APLICANDO MIGRACIONES DEL SISTEMA ==="
-      python manage.py migrate --fake-initial
+      echo "=== MIGRACIONES SISTEMA COMO FAKE INITIAL ==="
+      python manage.py migrate contenttypes 0001_initial --fake
+      python manage.py migrate auth 0001_initial --fake
+      python manage.py migrate admin 0001_initial --fake
+      python manage.py migrate sessions 0001_initial --fake
 
-      echo "=== MARCANDO MIGRACIÓN INICIAL DE INVENTARIO ==="
+      echo "=== MARCAR MIGRACIONES POSTERIORES DEL SISTEMA ==="
+      python manage.py migrate --fake
+
+      echo "=== MARCAR 0001 de INVENTARIO COMO FAKE ==="
       python manage.py migrate inventario 0001_initial --fake
 
-      echo "=== MARCANDO TODAS LAS MIGRACIONES DE INVENTARIO COMO APLICADAS ==="
+      echo "=== MARCAR TODAS LAS DEMÁS MIGRACIONES DE INVENTARIO COMO FAKE ==="
       python manage.py migrate inventario --fake
 
     startCommand: gunicorn inventario_project.wsgi:application
