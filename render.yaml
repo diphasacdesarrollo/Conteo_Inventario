@@ -9,8 +9,8 @@ services:
       echo "=== Recopilando archivos estáticos ==="
       python manage.py collectstatic --noinput
 
-      echo "=== Marcando migraciones como aplicadas (FAKE) ==="
-      python manage.py migrate --fake
+      echo "=== Marcando migraciones como aplicadas (FAKE INITIAL) ==="
+      python manage.py migrate --fake-initial
 
     startCommand: gunicorn inventario_project.wsgi:application
     envVars:
