@@ -10,7 +10,7 @@ services:
       python manage.py collectstatic --noinput --verbosity=2
 
       echo "=== APLICANDO MIGRACIONES ==="
-      python manage.py migrate
+      python manage.py migrate --fake-initial
     startCommand: gunicorn inventario_project.wsgi:application
     envVars:
       - key: DJANGO_SETTINGS_MODULE
