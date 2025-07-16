@@ -11,7 +11,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'valor-local-inseguro')
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 
-ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['.onrender.com', 'conteo-inventario.onrender.com', 'localhost', '127.0.0.1']
 
 # Application definition
 
@@ -106,7 +106,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Para permitir servir archivos estáticos en producción
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static/inventario')]
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static', 'inventario')]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
