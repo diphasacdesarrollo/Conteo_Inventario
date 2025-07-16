@@ -8,4 +8,3 @@ services:
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: inventario_project.settings
-
