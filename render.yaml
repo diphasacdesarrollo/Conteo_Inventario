@@ -9,8 +9,14 @@ services:
       echo "=== EJECUTANDO COLLECTSTATIC ==="
       python manage.py collectstatic --noinput --verbosity=2
 
-      echo "=== APLICANDO MIGRACIONES ==="
-      python manage.py migrate --fake-initial
+      echo "=== FAKE MIGRATION: apps base ==="
+      python manage.py migrate contenttypes --fake
+      python manage.py migrate auth --fake
+      python manage.py migrate admin --fake
+      python manage.py migrate sessions --fake
+
+      echo "=== FAKE INITIAL: inventario ==="
+      python manage.py migrate inventario --fake-initial
 
     startCommand: gunicorn inventario_project.wsgi:application
     envVars:
