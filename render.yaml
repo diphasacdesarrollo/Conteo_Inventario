@@ -12,8 +12,11 @@ services:
       echo "=== APLICANDO MIGRACIONES DEL SISTEMA ==="
       python manage.py migrate --fake-initial
 
-      echo "=== MARCANDO MIGRACIÓN DE INVENTARIO COMO FAKED ==="
+      echo "=== MARCANDO MIGRACIÓN INICIAL DE INVENTARIO ==="
       python manage.py migrate inventario 0001_initial --fake
+
+      echo "=== MARCANDO TODAS LAS MIGRACIONES DE INVENTARIO COMO APLICADAS ==="
+      python manage.py migrate inventario --fake
 
     startCommand: gunicorn inventario_project.wsgi:application
     envVars:
