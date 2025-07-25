@@ -1,8 +1,41 @@
 #inventario/views.py
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
-from .models import Conteo, Zona, Subzona, Inventario
+from .models import Conteo, Zona, Subzona, Inventario, Lote
 from django.contrib import messages
+from collections import defaultdict
+
+def resumen_inventario(request):
+    return render(request, 'inventario/resumen_inventario.html')
+
+def resumen_datos_json(request):
+    resumen = defaultdict(lambda: defaultdict(dict))
+
+    conteos = Conteo.objects.select_related('lote__producto').order_by(
+        'lote_id', 'ubicacion_real', 'grupo', '-numero_conteo', '-fecha'
+    )
+
+    for conteo in conteos:
+        clave = (conteo.lote_id, conteo.ubicacion_real)
+        grupo_key = f'grupo_{conteo.grupo}'
+
+        if grupo_key not in resumen[clave]:
+            resumen[clave]['producto'] = str(conteo.lote.producto)
+            resumen[clave]['codigo'] = f"LOTE-{conteo.lote_id}"
+            resumen[clave]['lote'] = conteo.lote.numero_lote
+            resumen[clave]['ubicacion'] = conteo.ubicacion_real
+            resumen[clave][grupo_key] = conteo.cantidad_encontrada
+            resumen[clave]['imagen'] = conteo.evidencia.url if conteo.evidencia else ''
+
+    datos_finales = []
+    for (lote_id, ubicacion), info in resumen.items():
+        grupos = sorted([k for k in info if k.startswith('grupo_')])
+        cantidades = [info[k] for k in grupos if isinstance(info[k], int)]
+        final = cantidades[-1] if cantidades else None
+        datos_finales.append({**info, 'final': final})
+
+    return JsonResponse({'data': datos_finales})
+
 
 def conteo_producto(request):
     grupo = request.GET.get("grupo")
