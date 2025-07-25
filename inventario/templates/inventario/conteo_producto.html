@@ -72,7 +72,7 @@
             {% endwith %}
             </td>
             <td>
-                <input type="file" name="evidencia_{{ item.id }}" accept="image/*">
+                <input type="file" name="evidencia_{{ item.id }}" accept="image/*" capture>
             </td>
             </tr>
             {% endfor %}
@@ -90,7 +90,7 @@
             </div>
             <div class="form-group">
                 <label for="incidencia_evidencia">Evidencia:</label>
-                <input type="file" name="incidencia_evidencia" accept="image/*">
+                <input type="file" name="evidencia_{{ item.id }}" accept="image/*" capture>
             </div>
         </div>
 
