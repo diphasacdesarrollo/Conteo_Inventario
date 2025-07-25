@@ -20,9 +20,15 @@ def resumen_datos_json(request):
         grupo_key = f'grupo_{conteo.grupo}'
 
         if grupo_key not in resumen[clave]:
-            resumen[clave]['producto'] = str(conteo.lote.producto)
-            resumen[clave]['codigo'] = f"LOTE-{conteo.lote_id}"
-            resumen[clave]['lote'] = conteo.lote.numero_lote
+            if conteo.lote and conteo.lote.producto:
+                resumen[clave]['producto'] = str(conteo.lote.producto).replace('sin_codigo - ', '')
+                resumen[clave]['codigo'] = f"LOTE-{conteo.lote_id}"
+                resumen[clave]['lote'] = conteo.lote.numero_lote
+            else:
+                resumen[clave]['producto'] = "Producto no registrado"
+                resumen[clave]['codigo'] = "-"
+                resumen[clave]['lote'] = "-"
+            
             resumen[clave]['ubicacion'] = conteo.ubicacion_real
             resumen[clave][grupo_key] = conteo.cantidad_encontrada
             resumen[clave]['imagen'] = conteo.evidencia.url if conteo.evidencia else ''
