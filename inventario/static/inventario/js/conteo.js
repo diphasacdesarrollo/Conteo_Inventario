@@ -1,4 +1,4 @@
-// inventario/static/inventario/js/conteo.js
+// inventario/static/inventario/ja/conteo.js
 document.addEventListener("DOMContentLoaded", function () {
     const zonaSelect = document.getElementById("zona");
     const subzonaSelect = document.getElementById("subzona");
@@ -26,13 +26,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const form = document.querySelector("form[method='POST']");
     if (form) {
         form.addEventListener("submit", function (e) {
-            let error = false;
-            let mensaje = "";
-            let hayProductos = false;
-            let hayComentario = false;
+            let hayProductoValido = false;
+            let cantidadSinEvidencia = false;
 
             const filas = document.querySelectorAll("tbody tr");
-
             filas.forEach(fila => {
                 const cantidadInput = fila.querySelector("input[type='number']");
                 const evidenciaInput = fila.querySelector("input[type='file']");
@@ -40,10 +37,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 const evidencia = evidenciaInput?.files[0];
 
                 if (cantidad && parseInt(cantidad) > 0) {
-                    hayProductos = true;
-                    if (!evidencia || evidencia.size <= 0) {
-                        error = true;
-                        mensaje = "Para cada producto con cantidad ingresada, debes adjuntar evidencia.";
+                    hayProductoValido = true;
+                    if (!evidencia) {
+                        cantidadSinEvidencia = true;
                     }
                 }
             });
@@ -51,26 +47,41 @@ document.addEventListener("DOMContentLoaded", function () {
             const comentario = document.querySelector("textarea[name='incidencia_comentario']")?.value.trim();
             const evidenciaComentarioInput = document.querySelector("input[name='incidencia_evidencia']");
             const evidenciaComentarioArchivo = evidenciaComentarioInput?.files[0];
-            const evidenciaComentario = evidenciaComentarioArchivo && evidenciaComentarioArchivo.size > 0;
 
-            if (comentario || evidenciaComentario) {
-                hayComentario = true;
-                if (!comentario || !evidenciaComentario) {
-                    error = true;
-                    mensaje = "Para reportar un producto no registrado, debes ingresar comentario y evidencia.";
-                }
-            }
+            const hayComentario = !!comentario;
+            const hayEvidenciaComentario = !!evidenciaComentarioArchivo;
 
-            if (!hayProductos && !hayComentario) {
+            // DEBUG: consola
+            console.log("Comentario:", comentario);
+            console.log("Evidencia archivo:", evidenciaComentarioArchivo);
+            console.log("Tamaño:", evidenciaComentarioArchivo?.size);
+
+            // Casos separados
+            if (hayComentario && !hayEvidenciaComentario) {
                 e.preventDefault();
-                alert("Debes ingresar al menos una cantidad con evidencia o un comentario con evidencia.");
+                alert("⚠️ Escribiste un comentario, pero falta adjuntar la evidencia.");
                 return;
             }
 
-            if (error) {
+            if (!hayComentario && hayEvidenciaComentario) {
                 e.preventDefault();
-                alert(mensaje);
+                alert("⚠️ Adjuntaste evidencia, pero olvidaste escribir el comentario.");
+                return;
             }
+
+            if (cantidadSinEvidencia) {
+                e.preventDefault();
+                alert("⚠️ Ingresaste una cantidad sin adjuntar su evidencia correspondiente.");
+                return;
+            }
+
+            if (!hayProductoValido && !hayComentario && !hayEvidenciaComentario) {
+                e.preventDefault();
+                alert("⚠️ Debes ingresar al menos una cantidad con evidencia o un comentario con evidencia.");
+                return;
+            }
+
+            // TODO: mensaje opcional de éxito o dejar que pase el submit
         });
     }
-}); 
+});

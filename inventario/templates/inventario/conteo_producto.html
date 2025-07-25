@@ -88,10 +88,10 @@
                 <label for="incidencia_comentario">Comentario:</label>
                 <textarea name="incidencia_comentario" placeholder="Ej: Producto hallado pero no figura en sistema...">{{ comentario_guardado }}</textarea>
             </div>
-            <div class="form-group">
-                <label for="incidencia_evidencia">Evidencia:</label>
-                <input type="file" name="evidencia_{{ item.id }}" accept="image/*" capture>
-            </div>
+<div class="form-group">
+    <label for="incidencia_evidencia">Evidencia:</label>
+    <input type="file" id="incidencia_evidencia" name="incidencia_evidencia" accept="image/*" capture>
+</div>
         </div>
 
         <button type="submit" class="btn">Registrar Conteo</button>

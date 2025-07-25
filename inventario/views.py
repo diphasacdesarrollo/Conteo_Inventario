@@ -124,15 +124,7 @@ def conteo_producto(request):
             if not comentario or not evidencia_libre:
                 messages.error(request, "Para reportar un producto fuera del sistema, debes ingresar comentario y adjuntar evidencia.")
                 return render(request, 'inventario/conteo_producto.html', {
-                    "zonas": zonas,
-                    "subzonas": subzonas,
-                    "zona_seleccionada": zona_seleccionada,
-                    "subzona_seleccionada": subzona_id,
-                    "inventario": inventario_qs,
-                    "grupo": grupo,
-                    "conteo": conteo,
-                    "datos_formulario": datos_formulario,
-                    "comentario_guardado": comentario_guardado
+                    ...
                 })
 
             subzona_obj = Subzona.objects.filter(id=subzona_id).first()
@@ -144,7 +136,8 @@ def conteo_producto(request):
                 comentario=comentario,
                 evidencia=evidencia_libre,
             )
-            hay_datos = True
+            messages.success(request, "Incidencia registrada correctamente.")  # <-- NUEVO
+            return redirect(request.get_full_path())
 
         if not hay_datos:
             messages.error(request, "Debes ingresar al menos un conteo con evidencia o reportar un producto fuera del sistema.")
