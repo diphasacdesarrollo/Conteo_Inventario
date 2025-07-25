@@ -23,3 +23,4 @@ ENV/
 
 # Otros
 *.DS_Store
+/media/
