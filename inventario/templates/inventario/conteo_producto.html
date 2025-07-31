@@ -109,7 +109,6 @@
                     <tr>
                         <th>Código y Producto</th>
                         <th>Lote</th>
-                        <th>Ubicación</th>
                         <th>Cantidad en Almacén</th>
                         <th>Cantidad Contada</th>
                     </tr>
@@ -119,7 +118,6 @@
                     <tr>
                         <td>{{ item.codigo }} - {{ item.producto_nombre }}</td>
                         <td>{{ item.lote }}</td>
-                        <td>{{ item.zona_nombre }}-{{ item.subzona_nombre }}</td>
                         <td>{{ item.cantidad }}</td>
                         <td>
                             <input type="number" name="cantidad_contada_{{ item.id }}" step="0.01" min="0"

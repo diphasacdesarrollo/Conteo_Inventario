@@ -26,39 +26,37 @@
                 <th>Grupo 3</th>
                 <th>Grupo 4</th>
                 <th>Conteo</th> 
-                <th>Cantidad Sistema</th> 
-                <th>Cantidad Final</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
 
-    <script>
-        async function cargarDatosResumen() {
-            const response = await fetch('/api/resumen/');
-            const data = await response.json();
-            const tbody = document.querySelector('#tablaResumen tbody');
-            tbody.innerHTML = '';
+<script>
+    async function cargarDatosResumen() {
+        const response = await fetch('/api/resumen/');
+        const data = await response.json();
+        const tbody = document.querySelector('#tablaResumen tbody');
+        tbody.innerHTML = '';
 
-            data.data.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${item.codigo || ''}</td>
-                    <td>${item.producto || ''}</td>
-                    <td>${item.lote || ''}</td>
-                    <td>${item.ubicacion || ''}</td>
-                    <td>${item.grupo_1 || ''}</td>
-                    <td>${item.grupo_2 || ''}</td>
-                    <td>${item.grupo_3 || ''}</td>
-                    <td>${item.grupo_4 || ''}</td>
-                    <td><strong>${item.final || ''}</strong></td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
+       data.data.forEach(item => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td>${item.codigo || ''}</td>
+        <td>${item.producto || ''}</td>
+        <td>${item.lote || ''}</td>
+        <td>${item.ubicacion || ''}</td>
+        <td>${item.grupo_1 || ''}</td>
+        <td>${item.grupo_2 || ''}</td>
+        <td>${item.grupo_3 || ''}</td>
+        <td>${item.grupo_4 || ''}</td>
+        <td>${item.conteo || ''}</td>
+    `;
+    tbody.appendChild(row);
+    });
+    }
 
-        cargarDatosResumen();
-        setInterval(cargarDatosResumen, 10000);
-    </script>
+    cargarDatosResumen();
+    setInterval(cargarDatosResumen, 10000);
+</script>
 </body>
 </html>

@@ -23,31 +23,27 @@ def resumen_datos_json(request):
         grupo_key = f'grupo_{conteo.grupo}'
 
         if grupo_key not in resumen[clave]:
-            codigo = conteo.lote.producto.codigo if conteo.lote and conteo.lote.producto else "-"
-            producto = conteo.lote.producto.nombre if conteo.lote and conteo.lote.producto else "Producto no registrado"
-            lote = conteo.lote.numero_lote if conteo.lote else "-"
-            ubicacion = conteo.ubicacion_real
-
-            # Buscar cantidad del sistema (Inventario)
-            cantidad_sistema = None
-            inv = Inventario.objects.filter(codigo=codigo, lote=lote, ubicacion=ubicacion).first()
-            if inv:
-                cantidad_sistema = inv.cantidad
-
-            resumen[clave]['codigo'] = codigo
-            resumen[clave]['producto'] = producto
-            resumen[clave]['lote'] = lote
-            resumen[clave]['ubicacion'] = ubicacion
-            resumen[clave]['numero_conteo'] = conteo.numero_conteo
-            resumen[clave]['cantidad_sistema'] = cantidad_sistema
+            resumen[clave]['codigo'] = conteo.lote.producto.codigo if conteo.lote and conteo.lote.producto else "-"
+            resumen[clave]['producto'] = conteo.lote.producto.nombre if conteo.lote and conteo.lote.producto else "Producto no registrado"
+            resumen[clave]['lote'] = conteo.lote.numero_lote if conteo.lote else "-"
+            resumen[clave]['ubicacion'] = conteo.ubicacion_real
             resumen[clave][grupo_key] = conteo.cantidad_encontrada
+            resumen[clave]['conteo'] = conteo.numero_conteo
+
+            # Buscar la cantidad en Inventario
+            try:
+                inv = Inventario.objects.get(
+                    codigo=resumen[clave]['codigo'],
+                    lote=resumen[clave]['lote'],
+                    ubicacion=resumen[clave]['ubicacion']
+                )
+                resumen[clave]['cantidad_sistema'] = inv.cantidad
+            except Inventario.DoesNotExist:
+                resumen[clave]['cantidad_sistema'] = None
 
     datos_finales = []
     for _, info in resumen.items():
-        grupos = sorted([k for k in info if k.startswith('grupo_')])
-        cantidades = [info[k] for k in grupos if isinstance(info[k], (int, float, float))]
-        final = cantidades[-1] if cantidades else None
-        datos_finales.append({**info, 'final': final})
+        datos_finales.append(info)
 
     return JsonResponse({'data': datos_finales})
 
@@ -93,7 +89,7 @@ def conteo_producto(request):
                     p.codigo AS codigo_producto,
                     p.nombre AS nombre_producto,
                     l.numero_lote,
-                    inv.ubicacion,  -- ✅ Traemos ubicación real
+                    inv.ubicacion,  
                     inv.cantidad
                 FROM inventario_inventario inv
                 JOIN inventario_lote l
@@ -103,7 +99,7 @@ def conteo_producto(request):
                 WHERE inv.ubicacion IS NOT NULL 
                   AND inv.ubicacion <> ''
                   AND CAST(inv.ubicacion AS TEXT) LIKE %s
-            """, [f"%{subzona_id}%"])  # filtro básico para la subzona
+            """, [f"%{subzona_id}%"])
 
             rows = cursor.fetchall()
 
@@ -113,30 +109,29 @@ def conteo_producto(request):
                     "codigo": row[1],
                     "producto_nombre": row[2],
                     "lote": row[3],
-                    "ubicacion": row[4],  # ✅ Ahora se muestra la ubicación física guardada
+                    "ubicacion": row[4],
                     "cantidad": row[5]
                 })
 
     if request.method == "POST":
+        # Obtener nombres de zona y subzona para guardarlos unidos
+        zona_nombre = Zona.objects.filter(id=zona_id).values_list("nombre", flat=True).first()
+        subzona_nombre = Subzona.objects.filter(id=subzona_id).values_list("nombre", flat=True).first()
+        ubicacion_final = f"{zona_nombre} - {subzona_nombre}" if zona_nombre and subzona_nombre else None
+
         for item in inventario_lista:
             cantidad_contada = request.POST.get(f"cantidad_contada_{item['id']}")
             if cantidad_contada and cantidad_contada.strip() != "":
                 lote_obj = Lote.objects.filter(numero_lote=item['lote']).first()
                 if not lote_obj:
-                    producto_generico, _ = Producto.objects.get_or_create(
-                        codigo="GEN-INV",
-                        defaults={"nombre": "Producto Inventario Genérico"}
-                    )
-                    lote_obj = Lote.objects.create(
-                        producto=producto_generico,
-                        numero_lote=item['lote']
-                    )
+                    # ❌ Eliminado el producto genérico, si no existe lote no se registra
+                    continue
 
                 Conteo.objects.create(
                     grupo=int(grupo),
                     numero_conteo=int(conteo_num),
                     cantidad_encontrada=cantidad_contada,
-                    ubicacion_real=item['ubicacion'],  # ✅ Guarda ubicación tal cual
+                    ubicacion_real=ubicacion_final or item['ubicacion'],
                     comentario=request.POST.get("incidencia_comentario", ""),
                     lote=lote_obj
                 )
@@ -144,6 +139,7 @@ def conteo_producto(request):
         messages.success(request, "Conteo registrado correctamente")
         return redirect(f"{request.path}?grupo={grupo}&conteo={conteo_num}&zona={zona_id}&subzona={subzona_id}")
 
+    # 🔹 Siempre retornar algo para evitar el pantallazo amarillo
     return render(request, "inventario/conteo_producto.html", {
         "grupo": grupo,
         "conteo": conteo_num,
