@@ -1,37 +1,18 @@
-<!--inventario/templates/inventario/resumen_inventario-->
+<!-- inventario/templates/inventario/resumen_inventario.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Resumen de Inventario por Grupo</title>
+    <title>Resumen de Inventario</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
-        h1 {
-            text-align: center;
-        }
-        table {
-            width: 98%;
-            margin: auto;
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 6px 10px;
-            text-align: center;
-        }
-        th {
-            background-color: #007bff;
-            color: white;
-        }
-        .imagen-preview {
-            max-height: 60px;
-        }
+        body { font-family: Arial, sans-serif; }
+        table { width: 98%; margin: auto; border-collapse: collapse; }
+        th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: center; }
+        th { background-color: #007bff; color: white; }
     </style>
 </head>
 <body>
-    <h1>Resumen de Conteos por Grupo</h1>
+    <h1 style="text-align:center;">Resumen de Conteos por Grupo</h1>
 
     <table id="tablaResumen">
         <thead>
@@ -43,68 +24,41 @@
                 <th>Grupo 1</th>
                 <th>Grupo 2</th>
                 <th>Grupo 3</th>
+                <th>Grupo 4</th>
+                <th>Conteo</th> 
+                <th>Cantidad Sistema</th> 
                 <th>Cantidad Final</th>
-                <th>Evidencia</th>
             </tr>
         </thead>
-        <tbody>
-            <!-- Contenido dinámico -->
-        </tbody>
+        <tbody></tbody>
     </table>
 
     <script>
         async function cargarDatosResumen() {
-            try {
-                const response = await fetch('/api/resumen/');
-                const data = await response.json();
+            const response = await fetch('/api/resumen/');
+            const data = await response.json();
+            const tbody = document.querySelector('#tablaResumen tbody');
+            tbody.innerHTML = '';
 
-                const tbody = document.querySelector('#tablaResumen tbody');
-                tbody.innerHTML = '';
-
-                data.data.forEach(item => {
-                    const row = document.createElement('tr');
-
-                    row.innerHTML = `
-                        <td>${item.codigo}</td>
-                        <td>${item.producto}</td>
-                        <td>${item.lote}</td>
-                        <td>${item.ubicacion}</td>
-                        <td>${item.grupo_1 || ''}</td>
-                        <td>${item.grupo_2 || ''}</td>
-                        <td>${item.grupo_3 || ''}</td>
-                        <td><strong>${item.final}</strong></td>
-                        <td>
-                            ${item.imagen ? `<button onclick="mostrarImagen('${item.imagen}')">Ver imagen</button>` : '—'}
-                        </td>
-                    `;
-
-                    tbody.appendChild(row);
-                });
-            } catch (error) {
-                console.error('Error al cargar datos:', error);
-            }
+            data.data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.codigo || ''}</td>
+                    <td>${item.producto || ''}</td>
+                    <td>${item.lote || ''}</td>
+                    <td>${item.ubicacion || ''}</td>
+                    <td>${item.grupo_1 || ''}</td>
+                    <td>${item.grupo_2 || ''}</td>
+                    <td>${item.grupo_3 || ''}</td>
+                    <td>${item.grupo_4 || ''}</td>
+                    <td><strong>${item.final || ''}</strong></td>
+                `;
+                tbody.appendChild(row);
+            });
         }
 
         cargarDatosResumen();
-        setInterval(cargarDatosResumen, 10000); // Actualiza cada 10 segundos
+        setInterval(cargarDatosResumen, 10000);
     </script>
-    <!-- Modal para mostrar imagen -->
-<div id="modalImagen" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; z-index:1000;">
-    <div style="position:relative;">
-        <img id="imagenGrande" src="" style="max-height:90vh; max-width:90vw; border: 4px solid white; border-radius: 6px;">
-        <button onclick="cerrarModal()" style="position:absolute; top:10px; right:10px; background:red; color:white; border:none; padding:6px 12px; cursor:pointer;">X</button>
-    </div>
-</div>
-
-<script>
-    function mostrarImagen(url) {
-        document.getElementById("imagenGrande").src = url;
-        document.getElementById("modalImagen").style.display = "flex";
-    }
-    function cerrarModal() {
-        document.getElementById("modalImagen").style.display = "none";
-        document.getElementById("imagenGrande").src = "";
-    }
-</script>
 </body>
 </html>

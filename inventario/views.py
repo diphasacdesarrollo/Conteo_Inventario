@@ -1,17 +1,20 @@
-#inventario/views.py
 from django.http import JsonResponse
-from django.shortcuts import render, redirect
-from .models import Conteo, Zona, Subzona, Inventario, Lote
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from collections import defaultdict
+from .models import Conteo, Zona, Subzona, Inventario, Producto, Lote
+from django.db.models import F
+from django.utils import timezone
+from django.db import connection
 
 def resumen_inventario(request):
+    # Simplemente renderiza el template del resumen
     return render(request, 'inventario/resumen_inventario.html')
 
 def resumen_datos_json(request):
     resumen = defaultdict(lambda: defaultdict(dict))
 
-    conteos = Conteo.objects.select_related('lote__producto').order_by(
+    conteos = Conteo.objects.select_related("lote__producto").order_by(
         'lote_id', 'ubicacion_real', 'grupo', '-numero_conteo', '-fecha'
     )
 
@@ -20,158 +23,37 @@ def resumen_datos_json(request):
         grupo_key = f'grupo_{conteo.grupo}'
 
         if grupo_key not in resumen[clave]:
-            if conteo.lote and conteo.lote.producto:
-                resumen[clave]['producto'] = str(conteo.lote.producto).replace('sin_codigo - ', '')
-                resumen[clave]['codigo'] = f"LOTE-{conteo.lote_id}"
-                resumen[clave]['lote'] = conteo.lote.numero_lote
-            else:
-                resumen[clave]['producto'] = "Producto no registrado"
-                resumen[clave]['codigo'] = "-"
-                resumen[clave]['lote'] = "-"
-            
-            resumen[clave]['ubicacion'] = conteo.ubicacion_real
+            codigo = conteo.lote.producto.codigo if conteo.lote and conteo.lote.producto else "-"
+            producto = conteo.lote.producto.nombre if conteo.lote and conteo.lote.producto else "Producto no registrado"
+            lote = conteo.lote.numero_lote if conteo.lote else "-"
+            ubicacion = conteo.ubicacion_real
+
+            # Buscar cantidad del sistema (Inventario)
+            cantidad_sistema = None
+            inv = Inventario.objects.filter(codigo=codigo, lote=lote, ubicacion=ubicacion).first()
+            if inv:
+                cantidad_sistema = inv.cantidad
+
+            resumen[clave]['codigo'] = codigo
+            resumen[clave]['producto'] = producto
+            resumen[clave]['lote'] = lote
+            resumen[clave]['ubicacion'] = ubicacion
+            resumen[clave]['numero_conteo'] = conteo.numero_conteo
+            resumen[clave]['cantidad_sistema'] = cantidad_sistema
             resumen[clave][grupo_key] = conteo.cantidad_encontrada
-            resumen[clave]['imagen'] = conteo.evidencia.url if conteo.evidencia else ''
 
     datos_finales = []
-    for (lote_id, ubicacion), info in resumen.items():
+    for _, info in resumen.items():
         grupos = sorted([k for k in info if k.startswith('grupo_')])
-        cantidades = [info[k] for k in grupos if isinstance(info[k], int)]
+        cantidades = [info[k] for k in grupos if isinstance(info[k], (int, float, float))]
         final = cantidades[-1] if cantidades else None
         datos_finales.append({**info, 'final': final})
 
     return JsonResponse({'data': datos_finales})
 
-
-def conteo_producto(request):
-    grupo = request.GET.get("grupo")
-    conteo = request.GET.get("conteo")
-    zona_seleccionada = request.GET.get("zona")
-    subzona_id = request.GET.get("subzona")
-
-    zonas = Zona.objects.all()
-    subzonas = Subzona.objects.filter(zona__nombre=zona_seleccionada) if zona_seleccionada else []
-    inventario_qs = Inventario.objects.filter(subzona__id=subzona_id) if subzona_id else []
-
-    datos_formulario = {}
-    comentario_guardado = ""
-
-    if request.method == "POST":
-        cantidad_valida = any(request.POST.get(f'cantidad_{item.id}', '').strip() for item in inventario_qs)
-        comentario = request.POST.get('incidencia_comentario', '').strip()
-        evidencia_libre = request.FILES.get('incidencia_evidencia')
-        comentario_guardado = comentario
-
-        if not cantidad_valida and not (comentario and evidencia_libre):
-            messages.error(request, "Debes ingresar al menos un producto con cantidad o una incidencia con comentario y evidencia.")
-            return render(request, 'inventario/conteo_producto.html', {
-                "zonas": zonas,
-                "subzonas": subzonas,
-                "zona_seleccionada": zona_seleccionada,
-                "subzona_seleccionada": subzona_id,
-                "inventario": inventario_qs,
-                "grupo": grupo,
-                "conteo": conteo,
-                "datos_formulario": datos_formulario,
-                "comentario_guardado": comentario_guardado
-            })
-
-        if cantidad_valida and (comentario and evidencia_libre):
-            messages.info(request, "Se detectaron productos contados y también una incidencia. Ambos serán registrados.")
-
-        hay_datos = False
-
-        # Procesar productos encontrados
-        for item in inventario_qs:
-            cantidad_str = request.POST.get(f'cantidad_{item.id}')
-            evidencia = request.FILES.get(f'evidencia_{item.id}')
-            datos_formulario[f'cantidad_{item.id}'] = cantidad_str
-
-            try:
-                cantidad = int(cantidad_str)
-                if cantidad <= 0:
-                    continue
-            except (ValueError, TypeError):
-                messages.error(request, f"Cantidad inválida para el lote {item.lote.numero_lote}.")
-                continue
-
-            if not evidencia:
-                messages.error(request, f"No se registró el conteo del lote {item.lote.numero_lote} porque falta la evidencia.")
-                continue
-
-            hay_datos = True
-
-            Conteo.objects.update_or_create(
-                lote=item.lote,
-                grupo=int(grupo),
-                numero_conteo=int(conteo),
-                defaults={
-                    'cantidad_encontrada': cantidad,
-                    'evidencia': evidencia,
-                    'ubicacion_real': item.subzona.nombre
-                }
-            )
-
-        # Si también se ingresó una incidencia junto con productos, registrar adicionalmente
-        if cantidad_valida and comentario and evidencia_libre:
-            subzona_obj = Subzona.objects.filter(id=subzona_id).first()
-            Conteo.objects.create(
-                grupo=int(grupo),
-                numero_conteo=int(conteo),
-                cantidad_encontrada=0,
-                ubicacion_real=subzona_obj.nombre if subzona_obj else "No definida",
-                comentario=comentario,
-                evidencia=evidencia_libre,
-            )
-            hay_datos = True
-
-        # Si solo hay incidencia (sin conteo)
-        if not hay_datos and (comentario or evidencia_libre):
-            if not comentario or not evidencia_libre:
-                messages.error(request, "Para reportar un producto fuera del sistema, debes ingresar comentario y adjuntar evidencia.")
-                return render(request, 'inventario/conteo_producto.html', {
-                    ...
-                })
-
-            subzona_obj = Subzona.objects.filter(id=subzona_id).first()
-            Conteo.objects.create(
-                grupo=int(grupo),
-                numero_conteo=int(conteo),
-                cantidad_encontrada=0,
-                ubicacion_real=subzona_obj.nombre if subzona_obj else "No definida",
-                comentario=comentario,
-                evidencia=evidencia_libre,
-            )
-            messages.success(request, "Incidencia registrada correctamente.")  # <-- NUEVO
-            return redirect(request.get_full_path())
-
-        if not hay_datos:
-            messages.error(request, "Debes ingresar al menos un conteo con evidencia o reportar un producto fuera del sistema.")
-            return render(request, 'inventario/conteo_producto.html', {
-                "zonas": zonas,
-                "subzonas": subzonas,
-                "zona_seleccionada": zona_seleccionada,
-                "subzona_seleccionada": subzona_id,
-                "inventario": inventario_qs,
-                "grupo": grupo,
-                "conteo": conteo,
-                "datos_formulario": datos_formulario,
-                "comentario_guardado": comentario_guardado
-            })
-
-        messages.success(request, "Conteo registrado correctamente.")
-        return redirect(request.get_full_path())
-
-    return render(request, 'inventario/conteo_producto.html', {
-        "zonas": zonas,
-        "subzonas": subzonas,
-        "zona_seleccionada": zona_seleccionada,
-        "subzona_seleccionada": subzona_id,
-        "inventario": inventario_qs,
-        "grupo": grupo,
-        "conteo": conteo
-    })
-
+# =======================
+# Selección de Grupo y Conteo
+# =======================
 def seleccionar_grupo_conteo(request):
     zonas = Zona.objects.all()
     if request.method == 'POST':
@@ -180,12 +62,94 @@ def seleccionar_grupo_conteo(request):
         return redirect(f'/conteo/?grupo={grupo}&conteo={conteo}')
     return render(request, 'inventario/seleccionar_grupo.html', {'zonas': zonas})
 
+
+# =======================
+# Obtener Subzonas AJAX
+# =======================
 def obtener_subzonas(request):
-    zona_nombre = request.GET.get('zona')
-    subzonas = []
+    zona_id = request.GET.get("zona")
+    if not zona_id:
+        return JsonResponse({"subzonas": []})
+    
+    subzonas = Subzona.objects.filter(zona_id=zona_id).values("id", "nombre")
+    return JsonResponse({"subzonas": list(subzonas)})
 
-    if zona_nombre:
-        subzonas_qs = Subzona.objects.filter(zona__nombre=zona_nombre).order_by('nombre')
-        subzonas = [{'id': s.id, 'nombre': s.nombre} for s in subzonas_qs]
+def conteo_producto(request):
+    grupo = request.GET.get("grupo") or request.POST.get("grupo")
+    conteo_num = request.GET.get("conteo") or request.POST.get("conteo")
+    zona_id = request.GET.get("zona") or request.POST.get("zona")
+    subzona_id = request.GET.get("subzona") or request.POST.get("subzona")
 
-    return JsonResponse({'subzonas': subzonas})
+    zonas = Zona.objects.all()
+    subzonas = Subzona.objects.filter(zona_id=zona_id) if zona_id else []
+
+    inventario_lista = []
+
+    if zona_id and subzona_id:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT 
+                    inv.id AS inventario_id,
+                    p.codigo AS codigo_producto,
+                    p.nombre AS nombre_producto,
+                    l.numero_lote,
+                    inv.ubicacion,  -- ✅ Traemos ubicación real
+                    inv.cantidad
+                FROM inventario_inventario inv
+                JOIN inventario_lote l
+                    ON CAST(inv.lote AS bigint) = l.id
+                JOIN inventario_producto p
+                    ON l.producto_id = p.id
+                WHERE inv.ubicacion IS NOT NULL 
+                  AND inv.ubicacion <> ''
+                  AND CAST(inv.ubicacion AS TEXT) LIKE %s
+            """, [f"%{subzona_id}%"])  # filtro básico para la subzona
+
+            rows = cursor.fetchall()
+
+            for row in rows:
+                inventario_lista.append({
+                    "id": row[0],
+                    "codigo": row[1],
+                    "producto_nombre": row[2],
+                    "lote": row[3],
+                    "ubicacion": row[4],  # ✅ Ahora se muestra la ubicación física guardada
+                    "cantidad": row[5]
+                })
+
+    if request.method == "POST":
+        for item in inventario_lista:
+            cantidad_contada = request.POST.get(f"cantidad_contada_{item['id']}")
+            if cantidad_contada and cantidad_contada.strip() != "":
+                lote_obj = Lote.objects.filter(numero_lote=item['lote']).first()
+                if not lote_obj:
+                    producto_generico, _ = Producto.objects.get_or_create(
+                        codigo="GEN-INV",
+                        defaults={"nombre": "Producto Inventario Genérico"}
+                    )
+                    lote_obj = Lote.objects.create(
+                        producto=producto_generico,
+                        numero_lote=item['lote']
+                    )
+
+                Conteo.objects.create(
+                    grupo=int(grupo),
+                    numero_conteo=int(conteo_num),
+                    cantidad_encontrada=cantidad_contada,
+                    ubicacion_real=item['ubicacion'],  # ✅ Guarda ubicación tal cual
+                    comentario=request.POST.get("incidencia_comentario", ""),
+                    lote=lote_obj
+                )
+
+        messages.success(request, "Conteo registrado correctamente")
+        return redirect(f"{request.path}?grupo={grupo}&conteo={conteo_num}&zona={zona_id}&subzona={subzona_id}")
+
+    return render(request, "inventario/conteo_producto.html", {
+        "grupo": grupo,
+        "conteo": conteo_num,
+        "zonas": zonas,
+        "subzonas": subzonas,
+        "zona_seleccionada": zona_id,
+        "subzona_seleccionada": subzona_id,
+        "inventario": inventario_lista
+    })
