@@ -2,7 +2,7 @@ from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from collections import defaultdict
-from .models import Conteo, Zona, Subzona, Inventario, Producto, Lote
+from .models import Conteo, Zona, Subzona, Inventario, Producto, Lote, Comentario
 from django.db.models import F
 from django.utils import timezone
 from django.db import connection
@@ -99,7 +99,7 @@ def conteo_producto(request):
                 JOIN inventario_subzona s
                     ON s.id = CAST(inv.ubicacion AS bigint)
                 WHERE s.id = %s
-            """, [subzona_id])  # ✅ Ahora filtra por ID, no por nombre
+            """, [subzona_id])
 
             rows = cursor.fetchall()
 
@@ -131,7 +131,6 @@ def conteo_producto(request):
                     numero_conteo=int(conteo_num),
                     cantidad_encontrada=cantidad_contada,
                     ubicacion_real=ubicacion_final or item['ubicacion'],
-                    comentario=request.POST.get("incidencia_comentario", ""),
                     lote=lote_obj
                 )
 
@@ -147,3 +146,40 @@ def conteo_producto(request):
         "subzona_seleccionada": subzona_id,
         "inventario": inventario_lista
     })
+
+def registrar_comentario(request):
+    if request.method == "POST":
+        grupo = request.POST.get("grupo")
+        conteo = request.POST.get("conteo")
+        zona_id = request.POST.get("zona")
+        subzona_id = request.POST.get("subzona")
+
+        # Obtener nombres para ubicacion
+        zona_nombre = Zona.objects.filter(id=zona_id).values_list("nombre", flat=True).first()
+        subzona_nombre = Subzona.objects.filter(id=subzona_id).values_list("nombre", flat=True).first()
+        ubicacion_final = f"{zona_nombre} - {subzona_nombre}" if zona_nombre and subzona_nombre else None
+
+        comentario_texto = request.POST.get("incidencia_comentario", "").strip()
+        if comentario_texto:
+            Comentario.objects.create(
+                grupo=int(grupo),
+                numero_conteo=int(conteo),
+                ubicacion_real=ubicacion_final,
+                comentario=comentario_texto
+            )
+            messages.success(request, "Comentario registrado correctamente")
+        else:
+            messages.warning(request, "No se registró el comentario porque está vacío")
+
+        return redirect(f"/conteo/?grupo={grupo}&conteo={conteo}&zona={zona_id}&subzona={subzona_id}")
+    
+def buscar_productos(request):
+    query = request.GET.get('q', '').strip()
+    resultados = []
+
+    if len(query) >= 2:
+        # Filtra por nombre o código (puedes ajustar el filtro)
+        productos = Producto.objects.filter(nombre__icontains=query)[:10]
+        resultados = [p.nombre for p in productos]
+
+    return JsonResponse(resultados, safe=False)

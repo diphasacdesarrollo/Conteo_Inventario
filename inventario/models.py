@@ -64,3 +64,15 @@ class Conteo(models.Model):
 
     def __str__(self):
         return f"Conteo {self.numero_conteo} Grupo {self.grupo} - Lote {self.lote.numero_lote}"
+    
+from django.db import models
+
+class Comentario(models.Model):
+    grupo = models.IntegerField()
+    numero_conteo = models.IntegerField()
+    ubicacion_real = models.CharField(max_length=255, null=True, blank=True)
+    comentario = models.TextField()
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comentario #{self.id} - Grupo {self.grupo} - Conteo {self.numero_conteo}"

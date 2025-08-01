@@ -129,13 +129,26 @@
             </table>
         </div>
 
-        <div class="form-select-group" style="flex-direction: column; align-items: flex-start;">
-            <h3>¿Deseas reportar un producto no encontrado o fuera del sistema?</h3>
-            <label for="incidencia_comentario">Comentario:</label>
-            <textarea name="incidencia_comentario" placeholder="Ej: Producto hallado pero no figura en sistema...">{{ comentario_guardado }}</textarea>
-        </div>
-
         <button type="submit" class="btn" style="margin-top: 1rem;">Registrar Conteo</button>
+    </form>
+
+    <!-- Formulario para registrar comentario -->
+    <form method="POST" action="{% url 'registrar_comentario' %}" style="margin-top: 2rem;">
+        {% csrf_token %}
+        <input type="hidden" name="grupo" value="{{ grupo }}">
+        <input type="hidden" name="conteo" value="{{ conteo }}">
+        <input type="hidden" name="zona" value="{{ zona_seleccionada }}">
+        <input type="hidden" name="subzona" value="{{ subzona_seleccionada }}">
+
+        <h3>Reportar incidencia (producto no encontrado o fuera del sistema)</h3>
+        <label for="buscar_producto">Buscar producto:</label>
+        <input type="text" id="buscar_producto" placeholder="Escribe para buscar..." autocomplete="off">
+        <div id="resultados_productos" style="border: 1px solid #ccc; display: none; position: absolute; background: white; z-index: 1000;"></div>
+
+        <label for="incidencia_comentario">Comentario:</label>
+        <textarea name="incidencia_comentario" placeholder="Ej: Producto hallado pero no figura en sistema..."></textarea>
+
+        <button type="submit" class="btn" style="margin-top: 0.5rem;">Registrar Comentario</button>
     </form>
     {% endif %}
 
@@ -157,5 +170,54 @@
 {% endif %}
 
 <script src="{% static 'inventario/js/conteo.js' %}"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const inputBusqueda = document.getElementById("buscar_producto");
+    const resultadosDiv = document.getElementById("resultados_productos");
+    const textareaComentario = document.querySelector("textarea[name='incidencia_comentario']");
+
+    inputBusqueda.addEventListener("input", function () {
+        const query = this.value.trim();
+
+        // Limpiar resultados previos
+        resultadosDiv.innerHTML = "";
+        resultadosDiv.style.display = "none";
+
+        if (query.length < 2) return; // mínimo 2 caracteres
+
+        fetch("{% url 'buscar_productos' %}?q=" + encodeURIComponent(query))
+            .then(res => res.json())
+            .then(data => {
+                if (data.length > 0) {
+                    resultadosDiv.style.display = "block";
+                    data.forEach(nombre => {
+                        const item = document.createElement("div");
+                        item.textContent = nombre;
+                        item.style.padding = "5px";
+                        item.style.cursor = "pointer";
+                        item.addEventListener("click", function () {
+                            inputBusqueda.value = nombre; // lo pone en el input
+                            textareaComentario.value = nombre; // también en el textarea
+                            resultadosDiv.innerHTML = "";
+                            resultadosDiv.style.display = "none";
+                            inputBusqueda.focus();
+                        });
+                        resultadosDiv.appendChild(item);
+                    });
+                }
+            })
+            .catch(err => console.error("Error buscando productos:", err));
+    });
+
+    // Ocultar si clic fuera
+    document.addEventListener("click", function (e) {
+        if (!inputBusqueda.contains(e.target) && !resultadosDiv.contains(e.target)) {
+            resultadosDiv.style.display = "none";
+        }
+    });
+});
+</script>
+
 </body>
 </html>
