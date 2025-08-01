@@ -84,34 +84,34 @@ def conteo_producto(request):
     if zona_id and subzona_id:
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT 
+                SELECT DISTINCT
                     inv.id AS inventario_id,
                     p.codigo AS codigo_producto,
                     p.nombre AS nombre_producto,
                     l.numero_lote,
-                    inv.ubicacion,  
+                    inv.ubicacion,
                     inv.cantidad
                 FROM inventario_inventario inv
                 JOIN inventario_lote l
                     ON CAST(inv.lote AS bigint) = l.id
                 JOIN inventario_producto p
                     ON l.producto_id = p.id
-                WHERE inv.ubicacion IS NOT NULL 
-                  AND inv.ubicacion <> ''
-                  AND CAST(inv.ubicacion AS TEXT) LIKE %s
-            """, [f"%{subzona_id}%"])
+                JOIN inventario_subzona s
+                    ON s.id = CAST(inv.ubicacion AS bigint)
+                WHERE s.id = %s
+            """, [subzona_id])  # ✅ Ahora filtra por ID, no por nombre
 
             rows = cursor.fetchall()
 
-            for row in rows:
-                inventario_lista.append({
-                    "id": row[0],
-                    "codigo": row[1],
-                    "producto_nombre": row[2],
-                    "lote": row[3],
-                    "ubicacion": row[4],
-                    "cantidad": row[5]
-                })
+        for row in rows:
+            inventario_lista.append({
+                "id": row[0],
+                "codigo": row[1],
+                "producto_nombre": row[2],
+                "lote": row[3],
+                "ubicacion": row[4],
+                "cantidad": row[5]
+            })
 
     if request.method == "POST":
         # Obtener nombres de zona y subzona para guardarlos unidos
@@ -124,8 +124,7 @@ def conteo_producto(request):
             if cantidad_contada and cantidad_contada.strip() != "":
                 lote_obj = Lote.objects.filter(numero_lote=item['lote']).first()
                 if not lote_obj:
-                    # ❌ Eliminado el producto genérico, si no existe lote no se registra
-                    continue
+                    continue  # ❌ Si no existe lote, no se registra
 
                 Conteo.objects.create(
                     grupo=int(grupo),
@@ -139,7 +138,6 @@ def conteo_producto(request):
         messages.success(request, "Conteo registrado correctamente")
         return redirect(f"{request.path}?grupo={grupo}&conteo={conteo_num}&zona={zona_id}&subzona={subzona_id}")
 
-    # 🔹 Siempre retornar algo para evitar el pantallazo amarillo
     return render(request, "inventario/conteo_producto.html", {
         "grupo": grupo,
         "conteo": conteo_num,
