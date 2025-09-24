@@ -11,6 +11,13 @@ from .models import (
     Conteo, Zona, Subzona, Inventario, Producto, Lote, Comentario
 )
 
+ALLOWED_GROUPS = {1, 2, 3}
+
+def _sanitize_group(val, default=1):
+    g = _as_int(val, default)
+    return g if g in ALLOWED_GROUPS else default
+
+
 # =========================
 # Helpers
 # =========================
@@ -57,28 +64,34 @@ def _defaults_zona_subzona():
 def _coalesce_zona_subzona_from_params(zona_param, subzona_param):
     """
     Acepta nombre o id (string) y devuelve (zona_obj, subzona_obj, zona_nombre, subzona_nombre).
-    Si vienen ids, los resuelve a nombre. Si falta algo, usa defaults.
+    Intenta por NOMBRE y por ID para soportar subzonas con nombres '1', '2', '3', etc.
     """
     zona_obj = None
     subzona_obj = None
 
-    # Resolver zona
+    # ---- ZONA: probar por nombre y luego por id ----
     if zona_param:
-        if str(zona_param).isdigit():
+        zona_obj = Zona.objects.filter(nombre=str(zona_param)).first()
+        if not zona_obj and str(zona_param).isdigit():
             zona_obj = Zona.objects.filter(id=int(zona_param)).first()
-        else:
-            zona_obj = Zona.objects.filter(nombre=str(zona_param)).first()
 
     # Defaults si no vino/zona inválida
     if not zona_obj:
         zona_obj, subzona_obj = _defaults_zona_subzona()
     else:
-        # Resolver subzona de esa zona
+        # ---- SUBZONA: siempre dentro de la zona ----
         if subzona_param:
-            if str(subzona_param).isdigit():
-                subzona_obj = Subzona.objects.filter(id=int(subzona_param), zona=zona_obj).first()
-            else:
-                subzona_obj = Subzona.objects.filter(nombre=str(subzona_param), zona=zona_obj).first()
+            # 1) por nombre (soporta nombres '1','2',...)
+            subzona_obj = Subzona.objects.filter(
+                zona=zona_obj, nombre=str(subzona_param)
+            ).first()
+            # 2) si no se encontró por nombre y parece id, intenta por id
+            if not subzona_obj and str(subzona_param).isdigit():
+                subzona_obj = Subzona.objects.filter(
+                    zona=zona_obj, id=int(subzona_param)
+                ).first()
+
+        # 3) default si sigue vacío
         if not subzona_obj:
             subzona_obj = Subzona.objects.filter(zona=zona_obj).order_by("nombre").first()
 
@@ -92,16 +105,17 @@ def _coalesce_zona_subzona_from_params(zona_param, subzona_param):
 # =========================
 def seleccionar_grupo_conteo(request):
     if request.method == "POST":
-        grupo  = _as_int(request.POST.get("grupo"),  _as_int(request.session.get("grupo"), 1))
-        conteo = _as_int(request.POST.get("conteo"), _as_int(request.session.get("conteo"), 1))
+        grupo  = _sanitize_group(request.POST.get("grupo"), _as_int(request.session.get("grupo"), 1))
+        conteo = max(1, _as_int(request.POST.get("conteo"), _as_int(request.session.get("conteo"), 1)))
         request.session["grupo"]  = grupo
         request.session["conteo"] = conteo
-        messages.info(request, f"Usando Grupo {grupo} | Conteo {conteo}")
+        messages.success(request, f"Seleccionaste Grupo {grupo} | Conteo N° {conteo}")
         return redirect("conteo_producto")
 
     ctx = {
-        "grupo":  _as_int(request.session.get("grupo"), 1),
-        "conteo": _as_int(request.session.get("conteo"), 1),
+        "grupo":  _sanitize_group(request.session.get("grupo"), 1),
+        "conteo": max(1, _as_int(request.session.get("conteo"), 1)),
+        "allowed_groups": sorted(ALLOWED_GROUPS),
     }
     return render(request, "inventario/seleccionar_grupo.html", ctx)
 
