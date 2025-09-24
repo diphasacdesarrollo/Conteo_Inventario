@@ -1,33 +1,23 @@
-#inventario_project/settings.py
+# inventario_project/settings.py
 from pathlib import Path
-import dj_database_url
 import os
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
+import dj_database_url
 
-# Configurar Cloudinary
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': 'dibshp8aq',
-    'API_KEY': '139432164772714',
-    'API_SECRET': 'FEMV3WieLt27-Z_yVJ7WX84oWvE'
-}
-
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-MEDIA_URL = '/media/'
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# --- Paths ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'valor-local-inseguro')
+# --- Core ---
+SECRET_KEY = os.getenv('SECRET_KEY', 'valor-local-inseguro')
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+ALLOWED_HOSTS = [
+    '.onrender.com',
+    'conteo-inventario.onrender.com',
+    'localhost',
+    '127.0.0.1',
+]
 
-
-ALLOWED_HOSTS = ['.onrender.com', 'conteo-inventario.onrender.com', 'localhost', '127.0.0.1']
-
-# Application definition
-
+# --- Apps ---
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -36,10 +26,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'inventario',
-    'cloudinary',
-    'cloudinary_storage',
 ]
 
+# --- Middleware ---
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -56,7 +45,7 @@ ROOT_URLCONF = 'inventario_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [],  # si usas carpeta 'templates', puedes poner [BASE_DIR / "templates"]
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -70,53 +59,49 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'inventario_project.wsgi.application'
 
+# --- Database ---
+# Usa DATABASE_URL si existe (Render). Si no, arma un fallback local con variables sueltas.
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    DATABASE_URL = (
+        f"postgresql://{os.getenv('DB_USER', 'postgres')}:"
+        f"{os.getenv('DB_PASSWORD', 'postgres')}@"
+        f"{os.getenv('DB_HOST', '127.0.0.1')}:"
+        f"{os.getenv('DB_PORT', '5432')}/"
+        f"{os.getenv('DB_NAME', 'inventario_db')}"
+    )
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# En Render normalmente necesitamos SSL; en local, no.
+SSL_REQUIRE = os.getenv("DB_SSL_REQUIRE", "True" if "render.com" in DATABASE_URL else "False") == "True"
 
 DATABASES = {
     'default': dj_database_url.parse(
-        os.getenv("DATABASE_URL", "postgresql://inventario_db_1sxp_user:Iwa7y3rROLZyuUKuK9g8fHgWEwLSCiog@dpg-d1r8odruibrs73f9n2lg-a.oregon-postgres.render.com/inventario_db_1sxp"),
+        DATABASE_URL,
         conn_max_age=600,
-        ssl_require=True
+        ssl_require=SSL_REQUIRE,
     )
 }
 
-
-
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
-
+# --- Auth ---
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-
+# --- i18n / tz ---
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
-
+# --- Static & Media ---
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / "staticfiles"
-# STATICFILES_DIRS = []  # opcional si no estás usando rutas adicionales
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

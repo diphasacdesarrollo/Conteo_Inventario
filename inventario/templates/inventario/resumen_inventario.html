@@ -1,61 +1,313 @@
-<!-- inventario/templates/inventario/resumen_inventario.html -->
-<!DOCTYPE html>
+{% load static %}
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Resumen de Inventario</title>
-    <style>
-        body { font-family: Arial, sans-serif; }
-        table { width: 98%; margin: auto; border-collapse: collapse; }
-        th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: center; }
-        th { background-color: #007bff; color: white; }
-    </style>
+  <meta charset="utf-8" />
+  <title>Resumen de Conteos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --blue: #1f6feb;
+      --blue-2: #0a58ca;
+      --green: #0aa96e;
+      --orange: #ff8c00;
+      --bg: #f5f7fb;
+      --text: #1d2433;
+      --muted: #6b7380;
+      --border: #e2e8f0;
+    }
+    body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";}
+    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    h1 { text-align:center; margin: 8px 0 4px; }
+    .subtitle { text-align:center; color:var(--muted); margin-bottom: 16px; }
+
+    .toolbar {
+      display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;
+      background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px;
+      box-shadow: 0 6px 16px rgba(0,0,0,.05);
+      margin-bottom: 16px;
+    }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    label { font-size: 13px; color: var(--muted); }
+    select, input[type="number"] {
+      height: 36px; padding: 0 10px; border:1px solid var(--border); border-radius:8px; background:#fff;
+    }
+    .btn {
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      height:36px; padding:0 14px; border-radius:8px; border:1px solid var(--blue);
+      background:var(--blue); color:#fff; cursor:pointer; font-weight:600;
+    }
+    .btn.secondary { border-color:var(--border); background:#fff; color:var(--text); }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+
+    .table-card{
+      background:#fff; border:1px solid var(--border); border-radius:12px;
+      box-shadow: 0 6px 16px rgba(0,0,0,.05);
+      overflow:hidden;
+    }
+    table { width:100%; border-collapse: collapse; }
+    thead th {
+      position:sticky; top:0; z-index:1;
+      background:var(--blue); color:#fff; text-align:left; padding:10px; font-weight:700; font-size:14px;
+    }
+    tbody td { padding:10px; border-top:1px solid var(--border); background:#fff; font-size:14px; }
+    tbody tr:nth-child(even) td { background:#fafbff; }
+    .badge-ok { color:var(--green); font-weight:700; }
+    .badge-pend { color:var(--orange); font-weight:700; }
+    .muted { color:var(--muted); }
+    .status { white-space:nowrap; }
+    .right { text-align:right; }
+
+    .footerbar{
+      display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#fff; border-top:1px solid var(--border);
+    }
+    .pager{ display:flex; gap:8px; align-items:center; }
+    .small { font-size:13px; color:var(--muted); }
+    .loader {
+      display:none; gap:8px; align-items:center; color:var(--muted);
+    }
+    .loader.show { display:flex; }
+    .dot { width:8px; height:8px; background:var(--blue); border-radius:50%; animation: blink 1s infinite alternate; }
+    .dot:nth-child(2){ animation-delay: .2s }
+    .dot:nth-child(3){ animation-delay: .4s }
+    @keyframes blink { from{opacity:.25; transform:translateY(2px)} to{opacity:1; transform:translateY(-2px)} }
+    .empty {
+      text-align:center; padding:24px; color:var(--muted);
+    }
+  </style>
 </head>
 <body>
-    <h1 style="text-align:center;">Resumen de Conteos por Grupo</h1>
+  <div class="wrap">
+    <h1>Resumen de Conteos</h1>
+    <div class="subtitle">Estado por Ubicación → Lote → Producto (política aplicada)</div>
 
-    <table id="tablaResumen">
+    <!-- Toolbar de filtros -->
+    <div class="toolbar">
+      <div class="field">
+        <label for="zona">Zona</label>
+        <select id="zona">
+          {% for z in zonas %}
+            {# value=id para obtener_subzonas; data-nombre para usar en resumen_datos_json #}
+            <option value="{{ z.id }}"
+                    data-nombre="{{ z.nombre }}"
+                    {% if zona_default and z.nombre == zona_default %}selected{% endif %}>
+              {{ z.nombre }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="subzona">Subzona</label>
+        <select id="subzona">
+          <!-- se llena por JS con obtener_subzonas -->
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="page_size">Filas por página</label>
+        <input type="number" id="page_size" min="50" max="1000" step="50" value="200" />
+      </div>
+
+      <div style="flex:1 1 auto"></div>
+
+      <div class="loader" id="loader">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span>Cargando…</span>
+      </div>
+
+      <button class="btn" id="btnRefrescar" type="button">Refrescar</button>
+    </div>
+
+    <!-- Tabla -->
+    <div class="table-card">
+      <table>
         <thead>
-            <tr>
-                <th>Código</th>
-                <th>Producto</th>
-                <th>Lote</th>
-                <th>Ubicación</th>
-                <th>Grupo 1</th>
-                <th>Grupo 2</th>
-                <th>Grupo 3</th>
-                <th>Grupo 4</th>
-                <th>Conteo</th> 
-            </tr>
+          <tr>
+            <th>Ubicación</th>
+            <th>Producto</th>
+            <th>Lote</th>
+            <th class="right">Sistema</th>
+            <th class="right">G1</th>
+            <th class="right">G2</th>
+            <th class="right">G3</th>
+            <th class="right">Objetivo</th>
+            <th class="right">Δ (Obj − Sist)</th>
+            <th>Estado</th>
+          </tr>
         </thead>
-        <tbody></tbody>
-    </table>
+        <tbody id="tbody">
+          <tr><td colspan="10" class="empty">Cargando datos…</td></tr>
+        </tbody>
+      </table>
 
-<script>
-    async function cargarDatosResumen() {
-        const response = await fetch('/api/resumen/');
-        const data = await response.json();
-        const tbody = document.querySelector('#tablaResumen tbody');
-        tbody.innerHTML = '';
+      <!-- Footer/Paginación -->
+      <div class="footerbar">
+        <div class="small" id="lblInfo">—</div>
+        <div class="pager">
+          <button class="btn secondary" id="prevBtn" type="button">« Anterior</button>
+          <span class="small" id="pageInfo">Página 1</span>
+          <button class="btn secondary" id="nextBtn" type="button">Siguiente »</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-       data.data.forEach(item => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-        <td>${item.codigo || ''}</td>
-        <td>${item.producto || ''}</td>
-        <td>${item.lote || ''}</td>
-        <td>${item.ubicacion || ''}</td>
-        <td>${item.grupo_1 || ''}</td>
-        <td>${item.grupo_2 || ''}</td>
-        <td>${item.grupo_3 || ''}</td>
-        <td>${item.grupo_4 || ''}</td>
-        <td>${item.conteo || ''}</td>
-    `;
-    tbody.appendChild(row);
-    });
+  <script>
+    // URLs (ajusta los names si difieren en tu urls.py)
+    const URL_SUBZONAS = "{% url 'obtener_subzonas' %}";
+    const URL_RESUMEN  = "{% url 'resumen_datos_json' %}";
+
+    // Defaults enviados desde la vista
+    const zonaDefault     = "{{ zona_default|default:'' }}";
+    const subzonaDefault  = "{{ subzona_default|default:'' }}";
+
+    // Estado UI
+    let currentPage = 1;
+
+    const elZona     = document.getElementById('zona');
+    const elSubzona  = document.getElementById('subzona');
+    const elPageSize = document.getElementById('page_size');
+    const elLoader   = document.getElementById('loader');
+    const elTbody    = document.getElementById('tbody');
+    const elInfo     = document.getElementById('lblInfo');
+    const elPageInfo = document.getElementById('pageInfo');
+    const btnPrev    = document.getElementById('prevBtn');
+    const btnNext    = document.getElementById('nextBtn');
+    const btnRefresh = document.getElementById('btnRefrescar');
+
+    // Helpers
+    function showLoader(show){ elLoader.classList.toggle('show', !!show); }
+    function optNombreZona(){ return elZona.options[elZona.selectedIndex]?.dataset?.nombre || ''; }
+    function optNombreSub(){ return elSubzona.options[elSubzona.selectedIndex]?.textContent?.trim() || ''; }
+
+    function fmt(v){
+      if (v === null || v === undefined || v === '') return '—';
+      return Number(v).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    cargarDatosResumen();
-</script>
+    function estadoBadge(txt){
+      if (!txt) return '';
+      if (txt.startsWith('OK')) return `<span class="badge-ok">${txt}</span>`;
+      return `<span class="badge-pend">${txt}</span>`;
+    }
+
+    async function cargarSubzonas(zonaId, selNombre){
+      elSubzona.innerHTML = `<option>Cargando…</option>`;
+      try{
+        const res = await fetch(`${URL_SUBZONAS}?zona=${encodeURIComponent(zonaId)}`);
+        const data = await res.json();
+        const arr = data.subzonas || [];
+        if (arr.length === 0){
+          elSubzona.innerHTML = `<option value="">—</option>`;
+          return;
+        }
+        elSubzona.innerHTML = arr.map(s => `<option value="${s.id}">${s.nombre}</option>`).join('');
+        // seleccionar por nombre si existe, si no, primera
+        if (selNombre){
+          const idx = Array.from(elSubzona.options).findIndex(o => o.textContent.trim() === selNombre);
+          if (idx >= 0) elSubzona.selectedIndex = idx; else elSubzona.selectedIndex = 0;
+        } else {
+          elSubzona.selectedIndex = 0;
+        }
+      }catch(e){
+        elSubzona.innerHTML = `<option value="">(error)</option>`;
+      }
+    }
+
+    async function loadResumen(page = 1){
+      const zonaNombre = optNombreZona();
+      const subNombre  = optNombreSub();
+      const pageSize   = parseInt(elPageSize.value || '200', 10);
+
+      showLoader(true);
+      elTbody.innerHTML = `<tr><td colspan="10" class="empty">Cargando…</td></tr>`;
+      try{
+        const qs = new URLSearchParams({
+          zona: zonaNombre,
+          subzona: subNombre,
+          page: page,
+          page_size: pageSize
+        });
+        const res = await fetch(`${URL_RESUMEN}?${qs.toString()}`);
+        const json = await res.json();
+        const items = json.data || [];
+
+        if (items.length === 0){
+          elTbody.innerHTML = `<tr><td colspan="10" class="empty">Sin registros para ${zonaNombre}-${subNombre}</td></tr>`;
+        }else{
+          elTbody.innerHTML = items.map(row => `
+            <tr>
+              <td>${row.ubicacion || ''}</td>
+              <td>${row.producto || ''}</td>
+              <td>${row.lote || ''}</td>
+              <td class="right">${fmt(row.sistema)}</td>
+              <td class="right">${fmt(row.g1)}</td>
+              <td class="right">${fmt(row.g2)}</td>
+              <td class="right">${fmt(row.g3)}</td>
+              <td class="right">${fmt(row.objetivo)}</td>
+              <td class="right">${fmt(row.delta)}</td>
+              <td class="status">${estadoBadge(row.estado)}</td>
+            </tr>
+          `).join('');
+        }
+
+        currentPage = page;
+        elPageInfo.textContent = `Página ${currentPage}`;
+        elInfo.textContent = `Zona: ${json.zona} • Subzona: ${json.subzona} • Filas: ${items.length}`;
+
+        // Habilitar/deshabilitar paginación si hizo tope (heurística simple)
+        btnPrev.disabled = currentPage <= 1;
+        btnNext.disabled = items.length < pageSize;
+      }catch(e){
+        elTbody.innerHTML = `<tr><td colspan="10" class="empty">Ocurrió un error al cargar los datos.</td></tr>`;
+      }finally{
+        showLoader(false);
+      }
+    }
+
+    // Eventos
+    elZona.addEventListener('change', async () => {
+      const zonaId = elZona.value;
+      await cargarSubzonas(zonaId, null);
+      currentPage = 1;
+      loadResumen(currentPage);
+    });
+
+    elSubzona.addEventListener('change', () => {
+      currentPage = 1;
+      loadResumen(currentPage);
+    });
+
+    elPageSize.addEventListener('change', () => {
+      currentPage = 1;
+      loadResumen(currentPage);
+    });
+
+    btnPrev.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage -= 1;
+        loadResumen(currentPage);
+      }
+    });
+    btnNext.addEventListener('click', () => {
+      currentPage += 1;
+      loadResumen(currentPage);
+    });
+    btnRefresh.addEventListener('click', () => loadResumen(currentPage));
+
+    // Init: seleccionar zona/subzona por defecto y cargar tabla
+    (async function init(){
+      // Si la opción seleccionada de zona no coincide con zonaDefault, la buscamos:
+      if (zonaDefault){
+        const idx = Array.from(elZona.options).findIndex(o => o.dataset.nombre === zonaDefault);
+        if (idx >= 0) elZona.selectedIndex = idx;
+      }
+      // Cargar subzonas de esa zona y seleccionar subzonaDefault si existe
+      await cargarSubzonas(elZona.value, subzonaDefault || null);
+      // Cargar datos iniciales
+      loadResumen(1);
+    })();
+  </script>
 </body>
 </html>

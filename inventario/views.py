@@ -1,185 +1,426 @@
+# inventario/views.py
+from collections import defaultdict
+from decimal import Decimal
+
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from collections import defaultdict
-from .models import Conteo, Zona, Subzona, Inventario, Producto, Lote, Comentario
-from django.db.models import F
-from django.utils import timezone
 from django.db import connection
 
-def resumen_inventario(request):
-    # Simplemente renderiza el template del resumen
-    return render(request, 'inventario/resumen_inventario.html')
+from .models import (
+    Conteo, Zona, Subzona, Inventario, Producto, Lote, Comentario
+)
 
-def resumen_datos_json(request):
-    resumen = defaultdict(lambda: defaultdict(dict))
+# =========================
+# Helpers
+# =========================
+def _param(request, name, default=None):
+    """Lee parámetro desde GET o POST; si falta, devuelve default."""
+    val = request.GET.get(name)
+    if val not in (None, ""):
+        return val
+    val = request.POST.get(name)
+    if val not in (None, ""):
+        return val
+    return default
 
-    conteos = Conteo.objects.select_related("lote__producto").order_by(
-        'lote_id', 'ubicacion_real', 'grupo', '-numero_conteo', '-fecha'
-    )
+def _as_int(val, default):
+    """Convierte a int de forma segura."""
+    try:
+        return int(str(val).strip())
+    except (TypeError, ValueError):
+        return default
 
-    for conteo in conteos:
-        clave = (conteo.lote_id, conteo.ubicacion_real)
-        grupo_key = f'grupo_{conteo.grupo}'
+def _to_float(val):
+    """Convierte texto a float (admite coma)."""
+    if val is None:
+        return None
+    s = str(val).strip().replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return None
 
-        if grupo_key not in resumen[clave]:
-            resumen[clave]['codigo'] = conteo.lote.producto.codigo if conteo.lote and conteo.lote.producto else "-"
-            resumen[clave]['producto'] = conteo.lote.producto.nombre if conteo.lote and conteo.lote.producto else "Producto no registrado"
-            resumen[clave]['lote'] = conteo.lote.numero_lote if conteo.lote else "-"
-            resumen[clave]['ubicacion'] = conteo.ubicacion_real
-            resumen[clave][grupo_key] = conteo.cantidad_encontrada
-            resumen[clave]['conteo'] = conteo.numero_conteo
+def _defaults_zona_subzona():
+    """
+    Retorna (zona_obj, subzona_obj) por defecto:
+    - primera zona por nombre asc
+    - primera subzona de esa zona por nombre asc
+    Si no hay subzonas, subzona_obj es None.
+    """
+    zona = Zona.objects.order_by("nombre").first()
+    if not zona:
+        return None, None
+    subzona = Subzona.objects.filter(zona=zona).order_by("nombre").first()
+    return zona, subzona
 
-            # Buscar la cantidad en Inventario
-            try:
-                inv = Inventario.objects.get(
-                    codigo=resumen[clave]['codigo'],
-                    lote=resumen[clave]['lote'],
-                    ubicacion=resumen[clave]['ubicacion']
-                )
-                resumen[clave]['cantidad_sistema'] = inv.cantidad
-            except Inventario.DoesNotExist:
-                resumen[clave]['cantidad_sistema'] = None
+def _coalesce_zona_subzona_from_params(zona_param, subzona_param):
+    """
+    Acepta nombre o id (string) y devuelve (zona_obj, subzona_obj, zona_nombre, subzona_nombre).
+    Si vienen ids, los resuelve a nombre. Si falta algo, usa defaults.
+    """
+    zona_obj = None
+    subzona_obj = None
 
-    datos_finales = []
-    for _, info in resumen.items():
-        datos_finales.append(info)
+    # Resolver zona
+    if zona_param:
+        if str(zona_param).isdigit():
+            zona_obj = Zona.objects.filter(id=int(zona_param)).first()
+        else:
+            zona_obj = Zona.objects.filter(nombre=str(zona_param)).first()
 
-    return JsonResponse({'data': datos_finales})
+    # Defaults si no vino/zona inválida
+    if not zona_obj:
+        zona_obj, subzona_obj = _defaults_zona_subzona()
+    else:
+        # Resolver subzona de esa zona
+        if subzona_param:
+            if str(subzona_param).isdigit():
+                subzona_obj = Subzona.objects.filter(id=int(subzona_param), zona=zona_obj).first()
+            else:
+                subzona_obj = Subzona.objects.filter(nombre=str(subzona_param), zona=zona_obj).first()
+        if not subzona_obj:
+            subzona_obj = Subzona.objects.filter(zona=zona_obj).order_by("nombre").first()
 
-# =======================
-# Selección de Grupo y Conteo
-# =======================
+    zona_nombre = zona_obj.nombre if zona_obj else None
+    subzona_nombre = subzona_obj.nombre if subzona_obj else None
+    return zona_obj, subzona_obj, zona_nombre, subzona_nombre
+
+
+# =========================
+# Selección inicial (grupo/conteo) guardado en sesión
+# =========================
 def seleccionar_grupo_conteo(request):
-    zonas = Zona.objects.all()
-    if request.method == 'POST':
-        grupo = request.POST.get('grupo')
-        conteo = request.POST.get('conteo')
-        return redirect(f'/conteo/?grupo={grupo}&conteo={conteo}')
-    return render(request, 'inventario/seleccionar_grupo.html', {'zonas': zonas})
+    if request.method == "POST":
+        grupo  = _as_int(request.POST.get("grupo"),  _as_int(request.session.get("grupo"), 1))
+        conteo = _as_int(request.POST.get("conteo"), _as_int(request.session.get("conteo"), 1))
+        request.session["grupo"]  = grupo
+        request.session["conteo"] = conteo
+        messages.info(request, f"Usando Grupo {grupo} | Conteo {conteo}")
+        return redirect("conteo_producto")
+
+    ctx = {
+        "grupo":  _as_int(request.session.get("grupo"), 1),
+        "conteo": _as_int(request.session.get("conteo"), 1),
+    }
+    return render(request, "inventario/seleccionar_grupo.html", ctx)
 
 
-# =======================
-# Obtener Subzonas AJAX
-# =======================
+# =========================
+# AJAX: subzonas por zona
+# =========================
 def obtener_subzonas(request):
     zona_id = request.GET.get("zona")
     if not zona_id:
         return JsonResponse({"subzonas": []})
-    
-    subzonas = Subzona.objects.filter(zona_id=zona_id).values("id", "nombre")
+    subzonas = Subzona.objects.filter(zona_id=zona_id).order_by("nombre").values("id", "nombre")
     return JsonResponse({"subzonas": list(subzonas)})
 
-def conteo_producto(request):
-    grupo = request.GET.get("grupo") or request.POST.get("grupo")
-    conteo_num = request.GET.get("conteo") or request.POST.get("conteo")
-    zona_id = request.GET.get("zona") or request.POST.get("zona")
-    subzona_id = request.GET.get("subzona") or request.POST.get("subzona")
 
-    zonas = Zona.objects.all()
-    subzonas = Subzona.objects.filter(zona_id=zona_id) if zona_id else []
+# =========================
+# Conteo por ubicación (usa grupo/conteo y selección zona/subzona)
+# =========================
+def conteo_producto(request):
+    zonas = Zona.objects.all().order_by("nombre")
+
+    grupo  = _as_int(request.session.get("grupo"), 1)
+    conteo = _as_int(request.session.get("conteo"), 1)
+
+    # Leer params o sesión
+    zona_in  = _param(request, "zona", request.session.get("zona"))
+    sub_in   = _param(request, "subzona", request.session.get("subzona"))
+
+    # Resolver a objetos/nombres con defaults
+    zona_obj, subzona_obj, zona_nombre, subzona_nombre = _coalesce_zona_subzona_from_params(zona_in, sub_in)
+
+    # Persistir en sesión (ids)
+    if zona_obj:
+        request.session["zona"] = zona_obj.id
+    if subzona_obj:
+        request.session["subzona"] = subzona_obj.id
+
+    # Listado de subzonas para el combo
+    subzonas = Subzona.objects.filter(zona=zona_obj).order_by("nombre") if zona_obj else Subzona.objects.none()
 
     inventario_lista = []
-
-    if zona_id and subzona_id:
+    if zona_obj and subzona_obj:
+        ubic = f"{zona_nombre}-{subzona_nombre}"
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT DISTINCT
-                    inv.id AS inventario_id,
-                    p.codigo AS codigo_producto,
-                    p.nombre AS nombre_producto,
-                    l.numero_lote,
-                    inv.ubicacion,
-                    inv.cantidad
-                FROM inventario_inventario inv
-                JOIN inventario_lote l
-                    ON CAST(inv.lote AS bigint) = l.id
-                JOIN inventario_producto p
-                    ON l.producto_id = p.id
-                JOIN inventario_subzona s
-                    ON s.id = CAST(inv.ubicacion AS bigint)
-                WHERE s.id = %s
-            """, [subzona_id])
-
+                SELECT inv.id,
+                       inv.codigo,
+                       COALESCE(p.nombre, inv.codigo) AS producto_nombre,
+                       inv.lote,
+                       inv.ubicacion,
+                       inv.cantidad
+                FROM inventario_inventario AS inv
+                LEFT JOIN inventario_producto AS p
+                       ON p.codigo = inv.codigo
+                WHERE inv.ubicacion = %s
+                ORDER BY producto_nombre, inv.lote;
+            """, [ubic])
             rows = cursor.fetchall()
 
-        for row in rows:
+        for r in rows:
             inventario_lista.append({
-                "id": row[0],
-                "codigo": row[1],
-                "producto_nombre": row[2],
-                "lote": row[3],
-                "ubicacion": row[4],
-                "cantidad": row[5]
+                "id": r[0],
+                "codigo": r[1],
+                "producto_nombre": r[2],
+                "lote": r[3],
+                "ubicacion": r[4],
+                "cantidad": r[5],
             })
 
-    if request.method == "POST":
-        # Obtener nombres de zona y subzona para guardarlos unidos
-        zona_nombre = Zona.objects.filter(id=zona_id).values_list("nombre", flat=True).first()
-        subzona_nombre = Subzona.objects.filter(id=subzona_id).values_list("nombre", flat=True).first()
-        ubicacion_final = f"{zona_nombre} - {subzona_nombre}" if zona_nombre and subzona_nombre else None
+    # Guardar conteo (POST) — idempotente por grupo/conteo/lote/ubicación
+    if request.method == "POST" and zona_obj and subzona_obj:
+        ubic_final = f"{zona_nombre}-{subzona_nombre}"
+        guardados = 0
 
         for item in inventario_lista:
-            cantidad_contada = request.POST.get(f"cantidad_contada_{item['id']}")
-            if cantidad_contada and cantidad_contada.strip() != "":
-                lote_obj = Lote.objects.filter(numero_lote=item['lote']).first()
-                if not lote_obj:
-                    continue  # ❌ Si no existe lote, no se registra
+            cantidad_contada = _to_float(request.POST.get(f"cantidad_contada_{item['id']}"))
+            if cantidad_contada is None:
+                continue
 
-                Conteo.objects.create(
-                    grupo=int(grupo),
-                    numero_conteo=int(conteo_num),
-                    cantidad_encontrada=cantidad_contada,
-                    ubicacion_real=ubicacion_final or item['ubicacion'],
-                    lote=lote_obj
-                )
+            # Lote coherente con el producto
+            lote_obj = Lote.objects.filter(
+                numero_lote=item["lote"],
+                producto__codigo=item["codigo"]
+            ).first()
+            if not lote_obj:
+                continue
 
-        messages.success(request, "Conteo registrado correctamente")
-        return redirect(f"{request.path}?grupo={grupo}&conteo={conteo_num}&zona={zona_id}&subzona={subzona_id}")
+            # Idempotencia
+            Conteo.objects.update_or_create(
+                grupo=grupo,
+                numero_conteo=conteo,
+                lote=lote_obj,
+                ubicacion_real=ubic_final,
+                defaults={"cantidad_encontrada": cantidad_contada},
+            )
+            guardados += 1
+
+        if guardados:
+            messages.success(request, f"Conteo registrado correctamente ({guardados} filas).")
+        else:
+            messages.warning(request, "No se registró ninguna fila (todas vacías o inválidas).")
+
+        return redirect("conteo_producto")
 
     return render(request, "inventario/conteo_producto.html", {
         "grupo": grupo,
-        "conteo": conteo_num,
+        "conteo": conteo,
         "zonas": zonas,
         "subzonas": subzonas,
-        "zona_seleccionada": zona_id,
-        "subzona_seleccionada": subzona_id,
-        "inventario": inventario_lista
+        "zona_seleccionada": zona_obj.id if zona_obj else None,
+        "subzona_seleccionada": subzona_obj.id if subzona_obj else None,
+        "inventario": inventario_lista,
     })
 
+
+# =========================
+# Avanzar conteo / Reiniciar selección
+# =========================
+def avanzar_conteo(request):
+    request.session["conteo"] = _as_int(request.session.get("conteo"), 1) + 1
+    messages.info(request, f"Pasaste al Conteo N° {request.session['conteo']}")
+    return redirect("conteo_producto")
+
+def reset_sesion_conteo(request):
+    for k in ("grupo", "conteo", "zona", "subzona"):
+        request.session.pop(k, None)
+    messages.info(request, "Selección reiniciada.")
+    return redirect("seleccionar_grupo")
+
+
+# =========================
+# Resumen (por grupo, sin sumar) + consenso 2-de-3
+# =========================
+TOL = Decimal("0.01")  # tolerancia
+
+def _resumen_rows(zona_nombre=None, subzona_nombre=None, page=1, page_size=200):
+    """
+    Devuelve filas del resumen, filtradas por zona/subzona si se pasan.
+    Soporta paginación con LIMIT/OFFSET.
+    """
+    # WHERE dinámico
+    where = []
+    params = []
+    if zona_nombre and subzona_nombre:
+        where.append("inv.ubicacion = %s")
+        params.append(f"{zona_nombre}-{subzona_nombre}")
+    elif zona_nombre:
+        where.append("inv.ubicacion LIKE %s")
+        params.append(f"{zona_nombre}-%")
+
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    limit = max(1, int(page_size))
+    offset = max(0, (int(page) - 1) * limit)
+
+    with connection.cursor() as cur:
+        cur.execute(f"""
+WITH inv AS (
+  SELECT inv.ubicacion,
+         p.nombre       AS producto,
+         l.id           AS lote_id,
+         l.numero_lote  AS lote,
+         inv.cantidad   AS sistema
+  FROM inventario_inventario inv
+  -- FIX: primero resolvemos el producto por codigo
+  LEFT JOIN inventario_producto p
+         ON p.codigo = inv.codigo
+  -- FIX: luego resolvemos el lote por (numero_lote + producto_id)
+  LEFT JOIN inventario_lote l
+         ON l.numero_lote = inv.lote
+        AND l.producto_id = p.id
+  {where_sql}
+),
+conteos_ult AS (
+  SELECT c.ubicacion_real,
+         c.lote_id,
+         c.grupo,
+         c.numero_conteo,
+         c.cantidad_encontrada,
+         ROW_NUMBER() OVER (
+           PARTITION BY c.ubicacion_real, c.lote_id, c.grupo
+           ORDER BY c.numero_conteo DESC, c.fecha DESC, c.id DESC
+         ) AS rn
+  FROM inventario_conteo c
+),
+c AS (
+  SELECT ubicacion_real, lote_id, grupo, numero_conteo, cantidad_encontrada
+  FROM conteos_ult
+  WHERE rn = 1
+)
+SELECT i.ubicacion, i.producto, i.lote, i.sistema,
+       c1.cantidad_encontrada AS g1, c1.numero_conteo AS g1_n,
+       c2.cantidad_encontrada AS g2, c2.numero_conteo AS g2_n,
+       c3.cantidad_encontrada AS g3, c3.numero_conteo AS g3_n
+FROM inv i
+LEFT JOIN c c1 ON c1.lote_id=i.lote_id AND c1.ubicacion_real=i.ubicacion AND c1.grupo=1
+LEFT JOIN c c2 ON c2.lote_id=i.lote_id AND c2.ubicacion_real=i.ubicacion AND c2.grupo=2
+LEFT JOIN c c3 ON c3.lote_id=i.lote_id AND c3.ubicacion_real=i.ubicacion AND c3.grupo=3
+ORDER BY i.ubicacion, i.producto, i.lote
+LIMIT %s OFFSET %s
+        """, [*params, limit, offset])
+        cols = [c[0] for c in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+    # --- resto igual (cálculo de objetivo/estado/delta) ---
+    def eq(a, b):
+        if a is None or b is None:
+            return False
+        from decimal import Decimal
+        TOL = Decimal("0.01")
+        return abs(Decimal(a) - Decimal(b)) <= TOL
+
+    items = []
+    from decimal import Decimal
+    for r in rows:
+        sistema = r["sistema"]
+        g1, g2, g3 = r["g1"], r["g2"], r["g3"]
+
+        objetivo = None
+        if eq(g1, g2): objetivo = g1
+        elif eq(g1, g3): objetivo = g1
+        elif eq(g2, g3): objetivo = g2
+
+        llenos = sum(1 for v in (g1, g2, g3) if v is not None)
+        if objetivo is not None:
+            estado = "OK (consenso)"
+        else:
+            estado = f"Pendiente • faltan {max(0, 2 - llenos)}" if llenos < 2 else "Pendiente • falta 1 (3er conteo)"
+
+        delta = (Decimal(str(objetivo)) - Decimal(str(sistema))) if objetivo is not None else None
+
+        def _f(v):
+            return None if v is None else float(v)
+        items.append({
+            "ubicacion": r["ubicacion"],
+            "producto":  r["producto"],
+            "lote":      str(r["lote"]) if r["lote"] is not None else "",
+            "sistema":   _f(sistema),
+            "g1":        _f(g1), "g1_n": r["g1_n"],
+            "g2":        _f(g2), "g2_n": r["g2_n"],
+            "g3":        _f(g3), "g3_n": r["g3_n"],
+            "objetivo":  _f(objetivo),
+            "delta":     _f(delta),
+            "estado":    estado,
+        })
+
+    return items
+
+
+def resumen_datos_json(request):
+    """
+    Endpoint JSON del resumen.
+    Acepta filtros:
+      - zona: id o nombre
+      - subzona: id o nombre
+      - page, page_size
+    Si no vienen, usa defaults (primera zona/subzona).
+    """
+    zona_in  = _param(request, "zona", None)
+    sub_in   = _param(request, "subzona", None)
+    page     = _as_int(_param(request, "page", 1), 1)
+    page_sz  = _as_int(_param(request, "page_size", 200), 200)
+
+    # Resolver nombres (con defaults)
+    _, _, zona_nombre, subzona_nombre = _coalesce_zona_subzona_from_params(zona_in, sub_in)
+
+    data = _resumen_rows(zona_nombre=zona_nombre, subzona_nombre=subzona_nombre, page=page, page_size=page_sz)
+    return JsonResponse({"data": data, "zona": zona_nombre, "subzona": subzona_nombre, "page": page, "page_size": page_sz})
+
+
+def resumen_inventario(request):
+    """
+    Render inicial del resumen: la página se pintará con los combos y,
+    en el front, hará fetch a resumen_datos_json con la zona/subzona por defecto.
+    """
+    # Defaults (primera zona + primera subzona)
+    zona_obj, subzona_obj = _defaults_zona_subzona()
+    ctx = {
+        "zonas": Zona.objects.order_by("nombre"),
+        "zona_default": zona_obj.nombre if zona_obj else "",
+        "subzona_default": subzona_obj.nombre if subzona_obj else "",
+    }
+    return render(request, "inventario/resumen_inventario.html", ctx)
+
+
+# =========================
+# Comentarios / incidencias
+# =========================
 def registrar_comentario(request):
     if request.method == "POST":
-        grupo = request.POST.get("grupo")
-        conteo = request.POST.get("conteo")
-        zona_id = request.POST.get("zona")
-        subzona_id = request.POST.get("subzona")
+        grupo  = _as_int(request.session.get("grupo"), 1)
+        conteo = _as_int(request.session.get("conteo"), 1)
+        zona_id = _as_int(request.session.get("zona"), None)
+        sub_id  = _as_int(request.session.get("subzona"), None)
 
-        # Obtener nombres para ubicacion
         zona_nombre = Zona.objects.filter(id=zona_id).values_list("nombre", flat=True).first()
-        subzona_nombre = Subzona.objects.filter(id=subzona_id).values_list("nombre", flat=True).first()
-        ubicacion_final = f"{zona_nombre} - {subzona_nombre}" if zona_nombre and subzona_nombre else None
+        sub_nombre  = Subzona.objects.filter(id=sub_id).values_list("nombre", flat=True).first()
+        ubic_final = f"{zona_nombre}-{sub_nombre}" if zona_nombre and sub_nombre else None
 
-        comentario_texto = request.POST.get("incidencia_comentario", "").strip()
-        if comentario_texto:
+        texto = (request.POST.get("incidencia_comentario") or "").strip()
+        if texto:
             Comentario.objects.create(
-                grupo=int(grupo),
-                numero_conteo=int(conteo),
-                ubicacion_real=ubicacion_final,
-                comentario=comentario_texto
+                grupo=grupo,
+                numero_conteo=conteo,
+                ubicacion_real=ubic_final,
+                comentario=texto,
             )
             messages.success(request, "Comentario registrado correctamente")
         else:
-            messages.warning(request, "No se registró el comentario porque está vacío")
+            messages.warning(request, "Comentario vacío; no se registró.")
+        return redirect("conteo_producto")
+    return redirect("seleccionar_grupo")
 
-        return redirect(f"/conteo/?grupo={grupo}&conteo={conteo}&zona={zona_id}&subzona={subzona_id}")
-    
+
+# =========================
+# Autocomplete de productos
+# =========================
 def buscar_productos(request):
-    query = request.GET.get('q', '').strip()
-    resultados = []
-
-    if len(query) >= 2:
-        # Filtra por nombre o código (puedes ajustar el filtro)
-        productos = Producto.objects.filter(nombre__icontains=query)[:10]
-        resultados = [p.nombre for p in productos]
-
-    return JsonResponse(resultados, safe=False)
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse([], safe=False)
+    productos = Producto.objects.filter(nombre__icontains=q).order_by("nombre")[:10]
+    return JsonResponse([p.nombre for p in productos], safe=False)
