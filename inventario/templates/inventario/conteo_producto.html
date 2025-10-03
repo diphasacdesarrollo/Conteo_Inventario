@@ -138,9 +138,9 @@
             <!-- SOLO nombre (código va como title por si quieres verlo al pasar el mouse) -->
             <td class="prod" title="Código: {{ item.codigo }}">{{ item.producto_nombre }}</td>
             <td>{{ item.lote }}</td>
-            <td class="almacen" data-alm="{{ item.cantidad|floatformat:2 }}">{{ item.cantidad|floatformat:2 }}</td>
+            <td class="almacen" data-alm="{{ item.cantidad|floatformat:0 }}">{{ item.cantidad|floatformat:2 }}</td>
             <td>
-              <input class="qty" type="number" step="0.01" min="0"
+              <input class="qty" type="number" step="1" min="0"
                      name="cantidad_contada_{{ item.id }}" value="">
             </td>
             <td class="cell-eq">
