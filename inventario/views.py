@@ -241,6 +241,8 @@ def conteo_producto(request):
         "subzonas": subzonas,
         "zona_seleccionada": zona_obj.id if zona_obj else None,
         "subzona_seleccionada": subzona_obj.id if subzona_obj else None,
+        "zona_nombre": zona_nombre,
+        "subzona_nombre": subzona_nombre,
         "inventario": inventario_lista,
     })
 

@@ -158,6 +158,27 @@
       </form>
     </section>
 
+    <!-- === NUEVO: Resumen de ubicación activa (chips) === -->
+    {% if zona_nombre or subzona_nombre %}
+      <div class="card" style="margin-top:12px; display:flex; align-items:center; gap:8px; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <strong>Ubicación activa:</strong>
+          {% if zona_nombre %}
+            <span class="badge" style="background:#e7f1ff; color:#0a58ca; border:1px solid #cfe2ff;">Zona: {{ zona_nombre }}</span>
+          {% endif %}
+          {% if subzona_nombre %}
+            <span class="badge" style="background:#e9f9f1; color:#0aa96e; border:1px solid #cfeee0;">Subzona: {{ subzona_nombre }}</span>
+          {% endif %}
+          <span class="muted" style="color:#6b7380;">{{ inventario|length }} ítems</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <a class="btn secondary" href="#zona">Cambiar</a>
+          <a class="btn secondary" href="{% url 'conteo_producto' %}">Limpiar</a>
+        </div>
+      </div>
+    {% endif %}
+    <!-- === /Resumen de ubicación === -->
+
     {% if inventario %}
     <!-- Toolbar de acciones masivas -->
     <section class="card" style="margin-top:12px">
@@ -228,11 +249,14 @@
     </section>
     {% endif %}
 
-    {% if not inventario and zona_seleccionada and subzona_seleccionada %}
+{% if not inventario %}
+  {% if zona_nombre or subzona_nombre %}
     <section class="card" style="margin-top:12px">
       <div class="msg info">No se encontraron productos para esta ubicación.</div>
     </section>
-    {% endif %}
+  {% endif %}
+{% endif %}
+
 
     <!-- Reportar incidencia -->
     <section class="card" style="margin-top:12px">
