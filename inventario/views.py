@@ -166,13 +166,25 @@ def conteo_producto(request):
                        COALESCE(p.nombre, inv.codigo) AS producto_nombre,
                        inv.lote,
                        inv.ubicacion,
-                       inv.cantidad
+                       inv.cantidad,
+                       c.id AS conteo_id,                        -- ← null si no se ha contado
+                       c.cantidad_encontrada AS cantidad_prev    -- ← último valor contado
                 FROM inventario_inventario AS inv
                 LEFT JOIN inventario_producto AS p
                        ON p.codigo = inv.codigo
+                -- Vinculamos lote por (numero_lote + producto) para identificar el lote correcto
+                LEFT JOIN inventario_lote AS l
+                       ON l.numero_lote = inv.lote
+                      AND l.producto_id = p.id
+                -- ¿Ya existe conteo para este grupo y #conteo en esta ubicacion?
+                LEFT JOIN inventario_conteo AS c
+                       ON c.lote_id = l.id
+                      AND c.ubicacion_real = inv.ubicacion
+                      AND c.grupo = %s
+                      AND c.numero_conteo = %s
                 WHERE inv.ubicacion = %s
                 ORDER BY producto_nombre, inv.lote;
-            """, [ubic])
+            """, [grupo, conteo, ubic])
             rows = cursor.fetchall()
 
         for r in rows:
@@ -183,42 +195,44 @@ def conteo_producto(request):
                 "lote": r[3],
                 "ubicacion": r[4],
                 "cantidad": r[5],
+                "ya_contado": bool(r[6]),
+                "cantidad_prev": r[7],
             })
 
-    # Guardar conteo (POST) — idempotente por grupo/conteo/lote/ubicación
-    if request.method == "POST" and zona_obj and subzona_obj:
-        ubic_final = f"{zona_nombre}-{subzona_nombre}"
-        guardados = 0
+        # Guardar conteo (POST) — idempotente por grupo/conteo/lote/ubicación
+        if request.method == "POST":
+            ubic_final = f"{zona_nombre}-{subzona_nombre}"
+            guardados = 0
 
-        for item in inventario_lista:
-            cantidad_contada = _to_float(request.POST.get(f"cantidad_contada_{item['id']}"))
-            if cantidad_contada is None:
-                continue
+            for item in inventario_lista:
+                cantidad_contada = _to_float(request.POST.get(f"cantidad_contada_{item['id']}"))
+                if cantidad_contada is None:
+                    continue
 
-            # Lote coherente con el producto
-            lote_obj = Lote.objects.filter(
-                numero_lote=item["lote"],
-                producto__codigo=item["codigo"]
-            ).first()
-            if not lote_obj:
-                continue
+                # Lote coherente con el producto
+                lote_obj = Lote.objects.filter(
+                    numero_lote=item["lote"],
+                    producto__codigo=item["codigo"]
+                ).first()
+                if not lote_obj:
+                    continue
 
-            # Idempotencia
-            Conteo.objects.update_or_create(
-                grupo=grupo,
-                numero_conteo=conteo,
-                lote=lote_obj,
-                ubicacion_real=ubic_final,
-                defaults={"cantidad_encontrada": cantidad_contada},
-            )
-            guardados += 1
+                # Idempotencia
+                Conteo.objects.update_or_create(
+                    grupo=grupo,
+                    numero_conteo=conteo,
+                    lote=lote_obj,
+                    ubicacion_real=ubic_final,
+                    defaults={"cantidad_encontrada": cantidad_contada},
+                )
+                guardados += 1
 
-        if guardados:
-            messages.success(request, f"Conteo registrado correctamente ({guardados} filas).")
-        else:
-            messages.warning(request, "No se registró ninguna fila (todas vacías o inválidas).")
+            if guardados:
+                messages.success(request, f"Conteo registrado correctamente ({guardados} filas).")
+            else:
+                messages.warning(request, "No se registró ninguna fila (todas vacías o inválidas).")
 
-        return redirect("conteo_producto")
+            return redirect("conteo_producto")
 
     return render(request, "inventario/conteo_producto.html", {
         "grupo": grupo,
@@ -319,16 +333,14 @@ LIMIT %s OFFSET %s
         cols = [c[0] for c in cur.description]
         rows = [dict(zip(cols, r)) for r in cur.fetchall()]
 
-    # --- resto igual (cálculo de objetivo/estado/delta) ---
     def eq(a, b):
         if a is None or b is None:
             return False
-        from decimal import Decimal
-        TOL = Decimal("0.01")
-        return abs(Decimal(a) - Decimal(b)) <= TOL
+        from decimal import Decimal as _D
+        _TOL = _D("0.01")
+        return abs(_D(a) - _D(b)) <= _TOL
 
     items = []
-    from decimal import Decimal
     for r in rows:
         sistema = r["sistema"]
         g1, g2, g3 = r["g1"], r["g2"], r["g3"]

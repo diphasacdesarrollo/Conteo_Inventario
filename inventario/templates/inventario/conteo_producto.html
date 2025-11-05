@@ -2,305 +2,288 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8">
   <title>Conteo — Grupo {{ grupo }} | Conteo N° {{ conteo }}</title>
-  <link rel="stylesheet" href="{% static 'inventario/css/estilos.css' %}">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- MISMO CSS GLOBAL QUE USA RESUMEN -->
   <style>
-    .page { max-width: 1180px; margin: 18px auto; padding: 16px; }
+  /* ===== Paleta y base: igual que RESUMEN ===== */
+  :root {
+    --blue: #1f6feb;
+    --blue-2: #0a58ca;
+    --green: #0aa96e;
+    --orange: #ff8c00;
+    --bg: #f5f7fb;
+    --text: #1d2433;
+    --muted: #6b7380;
+    --border: #e2e8f0;
+  }
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";}
+  .container{max-width:1200px;margin:24px auto;padding:0 16px;}
 
-    .toolbar {
-      display: flex; gap: 12px; align-items: end; flex-wrap: wrap;
-      margin: 10px 0 12px;
-    }
-    .toolbar label { font-weight: 600; display: block; margin-bottom: 6px; }
-    select { padding: 8px; border-radius: 6px; border: 1px solid #cfd4da; min-width: 160px; }
-    .btn {
-      background: #0d6efd; color: #fff; border: 0; padding: 9px 14px;
-      border-radius: 6px; cursor: pointer; font-weight: 600;
-    }
-    .btn.secondary { background: #6c757d; }
-    .btn.warn { background: #495057; }
-    .btn:hover { filter: brightness(0.95); }
+  /* ===== Títulos como RESUMEN ===== */
+  .header-title{ text-align:center; margin:8px 0 4px; font-size:2rem; font-weight:800; }
+  .header-sub{ text-align:center; color:var(--muted); margin-bottom:16px; }
 
-    .actions-row { display: flex; gap: 10px; margin: 6px 0 12px; flex-wrap: wrap; }
+  /* ===== Tarjetas / envoltorios ===== */
+  .card{
+    background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px;
+    box-shadow:0 6px 16px rgba(0,0,0,.05);
+  }
+  .fieldset{ margin:0; }
+  fieldset{ border:0; padding:0; margin:0; }
+  legend{ font-weight:700; margin-bottom:8px; }
 
-    .table-wrap {
-      border: 1px solid #e7e7e7; border-radius: 10px; overflow: hidden;
-      background: #fff;
-    }
-    table { width: 100%; border-collapse: collapse; }
-    thead th {
-      position: sticky; top: 0;
-      background: #0d6efd; color: #fff;
-      text-align: center;
-      font-weight: 700; font-size: 14px;
-      padding: 12px 10px; letter-spacing: .2px;
-    }
-    tbody td {
-      border-top: 1px solid #eef1f4;
-      padding: 10px; text-align: center; font-size: 14px;
-    }
-    tbody tr:nth-child(even) { background: #f8fafc; }
-    td.prod { text-align: left; font-weight: 600; }
-    td.prod small { color: #6c757d; font-weight: 400; }
+  /* ===== Form grid ===== */
+  .form-grid{ display:grid; grid-template-columns:auto 220px auto 220px auto; gap:10px 12px; align-items:end; }
+  label{ font-size:13px; color:var(--muted); }
+  select, input[type="text"], textarea{
+    height:36px; padding:0 10px; border:1px solid var(--border); border-radius:8px; background:#fff;
+  }
+  textarea{ height:auto; padding:10px; }
 
-    .qty { width: 120px; padding: 8px; border: 1px solid #cfd4da; border-radius: 6px; text-align: right; }
+  /* ===== Botones ===== */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    height:36px; padding:0 14px; border-radius:8px; border:1px solid var(--blue);
+    background:var(--blue); color:#fff; cursor:pointer; font-weight:700;
+  }
+  .btn.secondary{ border-color:var(--border); background:#fff; color:var(--text); }
+  .btn:hover{ background:var(--blue-2); border-color:var(--blue-2); }
+  .btn.secondary:hover{ background:#f8fafc; }
+  .toolbar{ display:flex; gap:12px; flex-wrap:wrap; margin:12px 0; }
 
-    .cell-eq { width: 60px; }
-    .btn-eq {
-      width: 40px; height: 36px; border-radius: 8px; border: 1px solid #d0d6dd;
-      background: #f1f3f5; cursor: pointer; font-weight: 700;
-    }
+  /* ===== Mensajes (Django messages) ===== */
+  .msg{ padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.04); }
+  .msg.success{ color:var(--green); }
+  .msg.info{ color:#0b5ed7; }
+  .msg.warning{ color:#b08900; }
+  .msg.error{ color:#b42318; }
 
-    .panel { margin-top: 22px; }
-    .panel h3 { margin: 0 0 10px; }
-    .w-100 { width: 100%; }
-    .textarea { width: 100%; min-height: 90px; padding: 10px; border: 1px solid #cfd4da; border-radius: 8px; }
+  /* ===== Tabla con cabezal azul ===== */
+  .table-wrap{ overflow:auto; border-radius:12px; border:1px solid var(--border); box-shadow:0 6px 16px rgba(0,0,0,.05); }
+  table{ width:100%; border-collapse:collapse; background:#fff; }
+  thead th{
+    position:sticky; top:0; z-index:1;
+    background:var(--blue); color:#fff; text-align:left; padding:10px; font-weight:700; font-size:14px;
+  }
+  tbody td{ padding:10px; border-top:1px solid var(--border); background:#fff; font-size:14px; }
+  tbody tr:nth-child(even) td{ background:#fafbff; }
+  .actions-right{ text-align:right; white-space:nowrap; }
+  .cantidad-input, .inp-cantidad{ width:130px; padding:8px; text-align:right; height:36px; border:1px solid var(--border); border-radius:8px; }
 
-    .top-right { float: right; margin-top: 0; }
-    .link-btn {
-      background: transparent; color: #0d6efd; border: 1px solid #d0d6dd;
-      padding: 8px 12px; border-radius: 8px; cursor: pointer;
-    }
+  /* ===== Estados y badges ===== */
+  .row-contada td{ background:#eefbf5 !important; }
+  .badge{
+    display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px;
+    background:#e9f9f1; color:var(--green); border:1px solid #cfeee0; margin-left:6px;
+  }
+  .recontar{ margin-left:8px; font-size:12px; color:var(--muted); user-select:none; }
+</style>
 
-    /* ayuda visual de cabeceras */
-    .col-prod   { width: 44%; }
-    .col-lote   { width: 16%; }
-    .col-alm    { width: 16%; }
-    .col-cont   { width: 16%; }
-    .col-acc    { width: 8%;  }
-
-  </style>
 </head>
-<body>
-<div class="page">
 
-  <div class="top-right">
-    <a href="{% url 'seleccionar_grupo' %}" class="link-btn">Volver a selección</a>
+<body>
+<main class="container">
+
+  <!-- Título -->
+  <h1 class="header-title">Conteo — Grupo {{ grupo }} | Conteo N° {{ conteo }}</h1>
+  <p class="header-sub">Estado por Ubicación → Lote → Producto</p>
+
+  <!-- Acciones globales -->
+  <div class="toolbar" style="justify-content:flex-end; margin-top:-6px;">
+    <a class="btn secondary" href="{% url 'seleccionar_grupo' %}">Volver a selección</a>
+    <a class="btn" href="{% url 'avanzar_conteo' %}">Avanzar a siguiente conteo</a>
   </div>
 
-  <h2>Conteo — <b>Grupo {{ grupo }}</b> | <b>Conteo N° {{ conteo }}</b></h2>
-  <p style="margin-top:-6px;color:#6c757d">Selecciona Zona/Subzona y registra las cantidades contadas.</p>
+  <!-- Mensajes del sistema -->
+  {% if messages %}
+    {% for message in messages %}
+      <div class="msg {{ message.tags|default:'' }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
 
-  <!-- Filtro de zona/subzona (GET) -->
-  <form method="get" action="{% url 'conteo_producto' %}">
-    <div class="toolbar">
-      <div>
-        <label for="zona">Zona:</label>
-        <select name="zona" id="zona" required>
-          <option value="">— Selecciona —</option>
-          {% for z in zonas %}
-            <option value="{{ z.id }}" {% if z.id == zona_seleccionada %}selected{% endif %}>{{ z.nombre }}</option>
-          {% endfor %}
-        </select>
-      </div>
+  <!-- Selector de Zona/Subzona (GET) -->
+  <section class="card card--soft">
+    <form method="get" class="fieldset" autocomplete="off">
+      <fieldset>
+        <legend>Ubicación</legend>
+        <div class="form-grid">
+          <label for="zona">Zona:</label>
+          <select id="zona" name="zona">
+            <option value="">— Selecciona —</option>
+            {% for z in zonas %}
+              <option value="{{ z.id }}" {% if zona_seleccionada == z.id %}selected{% endif %}>{{ z.nombre }}</option>
+            {% endfor %}
+          </select>
 
-      <div>
-        <label for="subzona">Subzona:</label>
-        <select name="subzona" id="subzona" required>
-          <option value="">— Selecciona —</option>
-          {% for s in subzonas %}
-            <option value="{{ s.id }}" {% if s.id == subzona_seleccionada %}selected{% endif %}>{{ s.nombre }}</option>
-          {% endfor %}
-        </select>
-      </div>
+          <label for="subzona">Subzona:</label>
+          <select id="subzona" name="subzona">
+            <option value="">— Selecciona —</option>
+            {% for s in subzonas %}
+              <option value="{{ s.id }}" {% if subzona_seleccionada == s.id %}selected{% endif %}>{{ s.nombre }}</option>
+            {% endfor %}
+          </select>
 
-      <div>
-        <button class="btn" type="submit">Buscar productos</button>
-      </div>
-    </div>
-  </form>
+          <button type="submit" class="btn">Buscar productos</button>
+        </div>
+        <div class="subtle" style="margin-top:6px;">Selecciona Zona/Subzona y registra las cantidades contadas.</div>
+      </fieldset>
+    </form>
+  </section>
 
   {% if inventario %}
-  <!-- Form de conteo (POST) -->
-  <form method="post" action="{% url 'conteo_producto' %}">
-    {% csrf_token %}
+    <!-- Toolbar de acciones masivas -->
+    <section class="card" style="margin-top:12px">
+      <div class="toolbar">
+        <button type="button" id="btn-fill-igual" class="btn secondary">Igualar todo a “Cantidad en Almacén”</button>
+        <button type="button" id="btn-fill-cero" class="btn secondary">Poner 0 en todos</button>
+      </div>
 
-    <div class="actions-row">
-      <button type="button" id="btnFillAll" class="btn secondary">Igualar todo a “Cantidad en Almacén”</button>
-      <button type="button" id="btnZeroAll" class="btn warn">Poner 0 en todos</button>
-    </div>
+      <!-- Formulario de registro de conteo (POST) -->
+      <form method="post" autocomplete="off">
+        {% csrf_token %}
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th class="col-prod">Producto</th>
-            <th class="col-lote">Lote</th>
-            <th class="col-alm">Cantidad en Almacén</th>
-            <th class="col-cont">Cantidad Contada</th>
-            <th class="col-acc">Acción</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in inventario %}
-          <tr data-row-id="{{ item.id }}">
-            <!-- SOLO nombre (código va como title por si quieres verlo al pasar el mouse) -->
-            <td class="prod" title="Código: {{ item.codigo }}">{{ item.producto_nombre }}</td>
-            <td>{{ item.lote }}</td>
-            <td class="almacen" data-alm="{{ item.cantidad|floatformat:0 }}">{{ item.cantidad|floatformat:2 }}</td>
-            <td>
-              <input class="qty" type="number" step="1" min="0"
-                     name="cantidad_contada_{{ item.id }}" value="">
-            </td>
-            <td class="cell-eq">
-              <!-- Igualar esta fila -->
-              <button type="button" class="btn-eq" title="Igualar a almacén">=</button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Lote</th>
+                <th>Cantidad en Almacén</th>
+                <th>Cantidad Contada</th>
+                <th class="actions-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in inventario %}
+                <tr class="{% if item.ya_contado %}row-contada{% endif %}">
+                  <td>{{ item.producto_nombre }}</td>
+                  <td>{{ item.lote }}</td>
+                  <td style="text-align:right">{{ item.cantidad|floatformat:2 }}</td>
+                  <td>
+                    <input
+                      type="text"
+                      name="cantidad_contada_{{ item.id }}"
+                      value="{% if item.ya_contado %}{{ item.cantidad_prev }}{% endif %}"
+                      {% if item.ya_contado %}disabled{% endif %}
+                      inputmode="decimal"
+                      class="inp-cantidad cantidad-input" />
 
-    <div style="display:flex; justify-content:flex-end; margin-top:12px;">
-      <button type="submit" class="btn">Registrar Conteo</button>
-    </div>
-  </form>
+                    {% if item.ya_contado %}
+                      <span class="badge">Ya contado</span>
+                      <label class="recontar">
+                        <input type="checkbox"
+                               class="chk-recontar"
+                               data-target="cantidad_contada_{{ item.id }}">
+                        Recontar
+                      </label>
+                    {% endif %}
+                  </td>
+                  <td class="actions-right">
+                    <button type="button"
+                            class="btn secondary btn-igual"
+                            data-src="{{ item.cantidad|floatformat:2 }}"
+                            data-target="cantidad_contada_{{ item.id }}">
+                      =
+                    </button>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="toolbar" style="justify-content:flex-end;">
+          <button type="submit" class="btn">Registrar Conteo</button>
+        </div>
+      </form>
+    </section>
   {% endif %}
 
   {% if not inventario and zona_seleccionada and subzona_seleccionada %}
-    <p style="color:#c1121f; margin-top:12px;">No se encontraron productos para esta ubicación.</p>
+    <section class="card" style="margin-top:12px">
+      <div class="msg info">No se encontraron productos para esta ubicación.</div>
+    </section>
   {% endif %}
 
-  <!-- Panel de incidencias -->
-  <div class="panel">
-    <h3>Reportar incidencia</h3>
-
-    <form method="post" action="{% url 'registrar_comentario' %}">
+  <!-- Reportar incidencia -->
+  <section class="card" style="margin-top:12px">
+    <form method="post" action="{% url 'registrar_comentario' %}" class="fieldset" autocomplete="off">
       {% csrf_token %}
-
-      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <input id="buscar_producto" type="text" class="w-100"
-               placeholder="Buscar producto..." autocomplete="off"
-               style="max-width: 360px; padding: 8px; border-radius: 6px; border:1px solid #cfd4da;">
-        <button type="button" id="btnUseInComment" class="btn secondary">Usar en comentario</button>
-      </div>
-
-      <div id="resultados_productos"
-           style="border:1px solid #ddd; display:none; position:absolute; background:#fff; z-index:1000; max-width:360px;"></div>
-
-      <textarea name="incidencia_comentario" class="textarea" placeholder="Describe la incidencia…"></textarea>
-
-      <div style="margin-top:8px;">
-        <button type="submit" class="btn">Registrar Comentario</button>
-      </div>
+      <fieldset>
+        <legend>Reportar incidencia</legend>
+        <div class="form-inline w-100">
+          <input type="text" id="buscador-incidencia" placeholder="Buscar producto…" class="w-100" />
+          <button type="button" id="btn-usar-en-comentario" class="btn secondary">Usar en comentario</button>
+        </div>
+        <div class="fieldset">
+          <textarea name="incidencia_comentario" id="incidencia_comentario" rows="4" class="w-100" placeholder="Describe la incidencia…"></textarea>
+        </div>
+        <div class="toolbar" style="justify-content:flex-start;">
+          <button type="submit" class="btn">Registrar Comentario</button>
+          <a class="btn secondary" href="{% url 'seleccionar_grupo' %}">Salir y Seleccionar Otro Grupo</a>
+        </div>
+      </fieldset>
     </form>
-  </div>
+  </section>
 
-  <div style="margin-top:16px; text-align:center;">
-    <a href="{% url 'seleccionar_grupo' %}" class="link-btn">Salir y Seleccionar Otro Grupo</a>
-  </div>
-
-  {% if messages %}
-  <div style="margin-top:12px;">
-    {% for message in messages %}
-      <div class="alert {{ message.tags }}">{{ message }}</div>
-    {% endfor %}
-  </div>
-  {% endif %}
-</div>
-
-<script>
-  // Rellenar subzonas por AJAX al cambiar zona
-  document.getElementById('zona').addEventListener('change', function () {
-    const zona = this.value;
-    const subSel = document.getElementById('subzona');
-    subSel.innerHTML = '<option value="">— Cargando… —</option>';
-    if (!zona) { subSel.innerHTML = '<option value="">— Selecciona —</option>'; return; }
-    fetch('{% url "obtener_subzonas" %}?zona=' + encodeURIComponent(zona))
-      .then(r => r.json())
-      .then(({subzonas}) => {
-        subSel.innerHTML = '<option value="">— Selecciona —</option>';
-        subzonas.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.id; opt.textContent = s.nombre;
-          subSel.appendChild(opt);
-        });
-      });
-  });
-
-  // === Igualar todos / poner cero
-  const btnFillAll = document.getElementById('btnFillAll');
-  const btnZeroAll = document.getElementById('btnZeroAll');
-
-  function eachRow(cb){
-    document.querySelectorAll('tbody tr').forEach(cb);
-  }
-
-  if (btnFillAll) btnFillAll.addEventListener('click', () => {
-    eachRow(tr => {
-      const alm = tr.querySelector('.almacen').dataset.alm;
-      const input = tr.querySelector('.qty');
-      input.value = alm;
-    });
-  });
-
-  if (btnZeroAll) btnZeroAll.addEventListener('click', () => {
-    eachRow(tr => tr.querySelector('.qty').value = 0);
-  });
-
-  // Igualar por fila
-  document.querySelectorAll('.btn-eq').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const tr = e.target.closest('tr');
-      const alm = tr.querySelector('.almacen').dataset.alm;
-      tr.querySelector('.qty').value = alm;
-    });
-  });
-
-  // === Autocomplete de productos para incidencia
-  const inputBusqueda = document.getElementById('buscar_producto');
-  const resultadosDiv = document.getElementById('resultados_productos');
-  const btnUseInComment = document.getElementById('btnUseInComment');
-  const textareaComentario = document.querySelector('textarea[name="incidencia_comentario"]');
-
-  if (inputBusqueda) {
-    inputBusqueda.addEventListener('input', function () {
-      const query = this.value.trim();
-      resultadosDiv.innerHTML = '';
-      resultadosDiv.style.display = 'none';
-      if (query.length < 2) return;
-
-      fetch('{% url "buscar_productos" %}?q=' + encodeURIComponent(query))
-        .then(res => res.json())
-        .then(data => {
-          if (data.length > 0) {
-            resultadosDiv.style.display = 'block';
-            resultadosDiv.style.maxHeight = '220px';
-            resultadosDiv.style.overflowY = 'auto';
-            resultadosDiv.style.padding = '4px';
-            data.forEach(nombre => {
-              const item = document.createElement('div');
-              item.textContent = nombre;
-              item.style.padding = '6px 8px';
-              item.style.cursor = 'pointer';
-              item.addEventListener('click', function () {
-                inputBusqueda.value = nombre;
-                resultadosDiv.innerHTML = '';
-                resultadosDiv.style.display = 'none';
-              });
-              resultadosDiv.appendChild(item);
-            });
-          }
-        });
+  <!-- JS: recontar / igualar -->
+  <script>
+    // Enfocar al primer input pendiente al cargar
+    document.addEventListener('DOMContentLoaded', () => {
+      const firstEnabled = document.querySelector('.inp-cantidad:not([disabled])');
+      if (firstEnabled) firstEnabled.focus();
     });
 
-    document.addEventListener('click', function (e) {
-      if (!inputBusqueda.contains(e.target) && !resultadosDiv.contains(e.target)) {
-        resultadosDiv.style.display = 'none';
+    // Habilitar input cuando marcan "Recontar"
+    document.addEventListener('change', (e) => {
+      if (e.target.matches('.chk-recontar')) {
+        const name = e.target.dataset.target;
+        const input = document.getElementsByName(name)[0];
+        const btnEq = document.querySelector('.btn-igual[data-target="' + name + '"]');
+        const enabled = e.target.checked;
+        if (input) input.disabled = !enabled;
+        if (btnEq) btnEq.disabled = !enabled;
+        if (enabled && input) input.focus();
       }
     });
 
-    if (btnUseInComment) {
-      btnUseInComment.addEventListener('click', function () {
-        if (inputBusqueda.value.trim()) {
-          textareaComentario.value = inputBusqueda.value.trim() + (textareaComentario.value ? '\n' + textareaComentario.value : '');
-          inputBusqueda.focus();
-        }
+    // Copiar cantidad de sistema al input (botón "=")
+    document.addEventListener('click', (e) => {
+      if (e.target.matches('.btn-igual')) {
+        const name = e.target.dataset.target;
+        const input = document.getElementsByName(name)[0];
+        if (input && !input.disabled) input.value = e.target.dataset.src;
+      }
+    });
+
+    // Acciones masivas (solo inputs habilitados)
+    document.getElementById('btn-fill-igual')?.addEventListener('click', () => {
+      document.querySelectorAll('.inp-cantidad:not([disabled])').forEach(inp => {
+        const btn = document.querySelector('.btn-igual[data-target="' + inp.name + '"]');
+        if (btn) inp.value = btn.dataset.src;
       });
-    }
-  }
-</script>
+    });
+    document.getElementById('btn-fill-cero')?.addEventListener('click', () => {
+      document.querySelectorAll('.inp-cantidad:not([disabled])').forEach(inp => inp.value = '0');
+    });
+
+    // Usar texto del buscador en el comentario
+    document.getElementById('btn-usar-en-comentario')?.addEventListener('click', () => {
+      const src = document.getElementById('buscador-incidencia')?.value?.trim();
+      const ta = document.getElementById('incidencia_comentario');
+      if (src && ta) {
+        ta.value = (ta.value ? (ta.value + '\n') : '') + src;
+        ta.focus();
+      }
+    });
+  </script>
+
+</main>
 </body>
 </html>
