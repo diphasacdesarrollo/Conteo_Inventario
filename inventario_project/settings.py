@@ -2,12 +2,20 @@
 # inventario_project/settings.py
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 import dj_database_url
 
-# ========== Paths ==========
+# =========================
+# Paths
+# =========================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ========== Núcleo ==========
+# Carga variables de entorno desde .env (local)
+load_dotenv()
+
+# =========================
+# Núcleo
+# =========================
 SECRET_KEY = os.getenv('SECRET_KEY', 'valor-local-inseguro')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
@@ -39,7 +47,9 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
-# ========== Apps ==========
+# =========================
+# Apps
+# =========================
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -50,7 +60,9 @@ INSTALLED_APPS = [
     'inventario',
 ]
 
-# ========== Middleware ==========
+# =========================
+# Middleware
+# =========================
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # servir estáticos
@@ -64,11 +76,13 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'inventario_project.urls'
 
-# ========== Templates ==========
+# =========================
+# Templates
+# =========================
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],  # ej. [BASE_DIR / "templates"]
+        'DIRS': [],  # p.ej. [BASE_DIR / "templates"]
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -82,11 +96,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'inventario_project.wsgi.application'
 
-# ========== Database ==========
-# Prioridad: INTERNAL_DATABASE_URL (Render) → DATABASE_URL (local/externa) → fallback local
+# =========================
+# Base de Datos (Render / Local fallback)
+# =========================
+# Prioridad: INTERNAL_DATABASE_URL (Render) → DATABASE_URL (.env/local) → fallback local
 DB_URL = (
-    os.getenv("INTERNAL_DATABASE_URL")  # para el servicio Django en Render
-    or os.getenv("DATABASE_URL")        # para local/pgAdmin4 (External)
+    os.getenv("INTERNAL_DATABASE_URL")  # Render (internal connection string si aplica)
+    or os.getenv("DATABASE_URL")        # Local/externa: del .env
     or (
         f"postgresql://{os.getenv('DB_USER', 'postgres')}:"
         f"{os.getenv('DB_PASSWORD', 'postgres')}@"
@@ -96,21 +112,25 @@ DB_URL = (
     )
 )
 
-# Render requiere SSL; en local, no (a menos que quieras forzarlo)
+# Render requiere SSL; en local normalmente no (a menos que lo fuerces)
 SSL_REQUIRE = os.getenv(
     "DB_SSL_REQUIRE",
     "True" if ("render.com" in DB_URL or "onrender.com" in DB_URL or "sslmode=require" in DB_URL) else "False"
 ) == "True"
 
+CONN_MAX_AGE = int(os.getenv("DB_CONN_MAX_AGE", "600"))
+
 DATABASES = {
     'default': dj_database_url.parse(
         DB_URL,
-        conn_max_age=600,       # pooling simple
+        conn_max_age=CONN_MAX_AGE,
         ssl_require=SSL_REQUIRE,
     )
 }
 
-# ========== Auth ==========
+# =========================
+# Auth
+# =========================
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -118,26 +138,29 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# ========== i18n / tz ==========
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'      # si prefieres Lima: 'America/Lima'
+# =========================
+# i18n / tz
+# =========================
+LANGUAGE_CODE = 'es'
+TIME_ZONE = 'America/Lima'
 USE_I18N = True
-USE_TZ = True
+USE_TZ = True  # almacena en UTC, convierte a America/Lima en vistas/plantillas
 
-# ========== Static & Media ==========
+# =========================
+# Static & Media
+# =========================
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-# (opcional) ajusta la caché de estáticos:
-# WHITENOISE_MAX_AGE = 31536000 if not DEBUG else 0
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# ========== Logging básico (opcional) ==========
-# Útil para ver consultas/errores en Render rápidamente
+# =========================
+# Logging (opcional)
+# =========================
 if os.getenv("DJANGO_LOG_SQL", "False") == "True":
     LOGGING = {
         'version': 1,
