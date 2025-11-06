@@ -20,7 +20,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'valor-local-inseguro')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [
-    'web-production-ffaf.up.railway.app'
+    'web-production-ffaf.up.railway.app',
     '.onrender.com',
     'conteo-inventario.onrender.com',
     'localhost',
