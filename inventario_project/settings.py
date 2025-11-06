@@ -10,7 +10,7 @@ import dj_database_url
 # =========================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Carga variables de entorno desde .env (local)
+# Carga variables de entorno desde .env (solo local)
 load_dotenv()
 
 # =========================
@@ -20,28 +20,18 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'valor-local-inseguro')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [
-    'web-production-ffaf.up.railway.app',
-    '.onrender.com',
-    'conteo-inventario.onrender.com',
+    'web-production-ffaf.up.railway.app',  # Railway
     'localhost',
     '127.0.0.1',
 ]
 
-# Confianza CSRF (Render + local)
 CSRF_TRUSTED_ORIGINS = [
-    'https://conteo-inventario.onrender.com',
-    'https://*.onrender.com',
+    'https://web-production-ffaf.up.railway.app',
     'http://localhost',
     'http://127.0.0.1',
 ]
 
-# Si Render expone el hostname público, añádelo automáticamente
-RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
-if RENDER_EXTERNAL_HOSTNAME:
-    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
-
-# Evitar problemas de HTTPS detrás del proxy de Render
+# Seguridad detrás de proxy (Railway)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -75,10 +65,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# IMPORTANTE: faltaba en tu segundo archivo
 ROOT_URLCONF = 'inventario_project.urls'
 
 # =========================
-# Templates
+# Templates (corregido)
 # =========================
 TEMPLATES = [
     {
@@ -98,39 +89,25 @@ TEMPLATES = [
 WSGI_APPLICATION = 'inventario_project.wsgi.application'
 
 # =========================
-# Base de Datos (Render / Local fallback)
+# Base de Datos (Railway / Local)
 # =========================
-# Prioridad: INTERNAL_DATABASE_URL (Render) → DATABASE_URL (.env/local) → fallback local
-DB_URL = (
-    os.getenv("INTERNAL_DATABASE_URL")  # Render (internal connection string si aplica)
-    or os.getenv("DATABASE_URL")        # Local/externa: del .env
-    or (
-        f"postgresql://{os.getenv('DB_USER', 'postgres')}:"
-        f"{os.getenv('DB_PASSWORD', 'postgres')}@"
-        f"{os.getenv('DB_HOST', '127.0.0.1')}:"
-        f"{os.getenv('DB_PORT', '5432')}/"
-        f"{os.getenv('DB_NAME', 'inventario_db')}"
-    )
-)
-
-# Render requiere SSL; en local normalmente no (a menos que lo fuerces)
-SSL_REQUIRE = os.getenv(
-    "DB_SSL_REQUIRE",
-    "True" if ("render.com" in DB_URL or "onrender.com" in DB_URL or "sslmode=require" in DB_URL) else "False"
-) == "True"
-
-CONN_MAX_AGE = int(os.getenv("DB_CONN_MAX_AGE", "600"))
+# En Railway, define DATABASE_URL en Variables (formato postgres://... o postgresql://...)
+DB_URL = os.getenv("DATABASE_URL")
 
 DATABASES = {
-    'default': dj_database_url.parse(
-        DB_URL,
-        conn_max_age=CONN_MAX_AGE,
-        ssl_require=SSL_REQUIRE,
+    'default': dj_database_url.config(
+        default=DB_URL,
+        conn_max_age=600,
+        ssl_require=True  # fuerza sslmode=require automáticamente
     )
 }
 
+# (Opcional/explicito) Si quieres dejarlo clarísimo:
+DATABASES['default'].setdefault('OPTIONS', {})
+DATABASES['default']['OPTIONS']['sslmode'] = 'require'
+
 # =========================
-# Auth
+# Validadores de contraseña
 # =========================
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -145,7 +122,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'es'
 TIME_ZONE = 'America/Lima'
 USE_I18N = True
-USE_TZ = True  # almacena en UTC, convierte a America/Lima en vistas/plantillas
+USE_TZ = True  # guarda en UTC y convierte a America/Lima
 
 # =========================
 # Static & Media
