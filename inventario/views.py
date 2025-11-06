@@ -448,7 +448,52 @@ def registrar_comentario(request):
 # =========================
 def buscar_productos(request):
     q = (request.GET.get("q") or "").strip()
-    if len(q) < 2:
-        return JsonResponse([], safe=False)
-    productos = Producto.objects.filter(nombre__icontains=q).order_by("nombre")[:10]
-    return JsonResponse([p.nombre for p in productos], safe=False)
+    if len(q) < int(request.GET.get("min_len", 2)):
+        return JsonResponse({"resultados": []})
+
+    # parámetros opcionales del UI
+    limit = max(1, min(int(request.GET.get("limit", 10)), 50))
+    zona_id = (request.GET.get("zona_id") or "").strip()
+    subzona_id = (request.GET.get("subzona_id") or "").strip()
+
+    try:
+        # 1) Traer resultados base desde la función SQL
+        with connection.cursor() as cur:
+            cur.execute("SELECT * FROM fn_buscar_items(%s, %s);", [q, limit])
+            rows = cur.fetchall()
+
+        cols = [
+            "producto_id","producto_nombre","lote_id","lote_numero",
+            "zona_id","zona_nombre","subzona_id","subzona_nombre"
+        ]
+        resultados = [dict(zip(cols, r)) for r in rows]
+
+        # 2) Si el match fue por producto/lote (zona/subzona NULL) y el UI ya tiene selección,
+        #    completar para que el comentario salga completo.
+        if zona_id or subzona_id:
+            zona_nombre = subzona_nombre = None
+            with connection.cursor() as cur:
+                if zona_id:
+                    cur.execute("SELECT nombre FROM inventario_zona WHERE id=%s;", [zona_id])
+                    row = cur.fetchone()
+                    zona_nombre = row[0] if row else None
+                if subzona_id:
+                    cur.execute("SELECT nombre FROM inventario_subzona WHERE id=%s;", [subzona_id])
+                    row = cur.fetchone()
+                    subzona_nombre = row[0] if row else None
+
+            for r in resultados:
+                if r["zona_id"] is None and zona_id:
+                    r["zona_id"] = int(zona_id)
+                    r["zona_nombre"] = zona_nombre
+                if r["subzona_id"] is None and subzona_id:
+                    r["subzona_id"] = int(subzona_id)
+                    r["subzona_nombre"] = subzona_nombre
+
+        return JsonResponse({"resultados": resultados})
+
+    except Exception as e:
+        # No tires 500 al usuario; devuélvele vacío y loguea el error en server.
+        # (en producción usa logging)
+        print("buscar_productos error:", e)
+        return JsonResponse({"resultados": []})

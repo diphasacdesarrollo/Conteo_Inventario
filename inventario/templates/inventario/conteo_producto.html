@@ -257,6 +257,97 @@
   {% endif %}
 {% endif %}
 
+<style>
+/* === Reportar incidencia mejorado === */
+section.card form.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+/* Título del bloque */
+section.card form.fieldset legend {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1d2433;
+}
+
+/* --- Línea del buscador y botón --- */
+section.card .form-inline {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+#buscador-incidencia {
+  flex: 1;
+  padding: 12px 14px;
+  font-size: 1rem;
+  border-radius: 8px;
+  border: 1px solid #d0d7de;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+#buscador-incidencia:focus {
+  border-color: #1f6feb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.2);
+}
+
+/* Botón "Usar en comentario" */
+#btn-usar-en-comentario {
+  padding: 0 16px;
+  font-size: 0.95rem;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid #c4d3fa;
+  background-color: #e8eefc;
+  color: #1f6feb;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#btn-usar-en-comentario:hover {
+  background-color: #d7e3fd;
+}
+
+/* --- Área de texto --- */
+#incidencia_comentario {
+  width: 100%;
+  min-height: 140px;   /* altura visible mayor */
+  font-size: 1rem;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #d0d7de;
+  box-sizing: border-box;
+  resize: vertical;    /* permite agrandar manualmente */
+}
+
+#incidencia_comentario:focus {
+  border-color: #1f6feb;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.2);
+}
+
+/* --- Barra inferior de botones --- */
+section.card .toolbar {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+section.card .toolbar .btn {
+  min-width: 180px;
+  height: 44px;
+  font-size: 1rem;
+  border-radius: 8px;
+}
+</style>
+
 
     <!-- Reportar incidencia -->
     <section class="card" style="margin-top:12px">
