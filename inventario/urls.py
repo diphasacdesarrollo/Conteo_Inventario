@@ -22,4 +22,5 @@ urlpatterns = [
 
     # Autocomplete
     path('buscar-productos/', views.buscar_productos, name='buscar_productos'),
-]
+    path("resumen/exportar/", views.exportar_resumen_excel, name="exportar_resumen_excel"),
+] 

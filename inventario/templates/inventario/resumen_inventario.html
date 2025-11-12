@@ -63,23 +63,28 @@
     }
     .pager{ display:flex; gap:8px; align-items:center; }
     .small { font-size:13px; color:var(--muted); }
-    .loader {
-      display:none; gap:8px; align-items:center; color:var(--muted);
-    }
+
+    .loader { display:none; gap:8px; align-items:center; color:var(--muted); }
     .loader.show { display:flex; }
     .dot { width:8px; height:8px; background:var(--blue); border-radius:50%; animation: blink 1s infinite alternate; }
     .dot:nth-child(2){ animation-delay: .2s }
     .dot:nth-child(3){ animation-delay: .4s }
     @keyframes blink { from{opacity:.25; transform:translateY(2px)} to{opacity:1; transform:translateY(-2px)} }
-    .empty {
-      text-align:center; padding:24px; color:var(--muted);
-    }
+
+    .empty { text-align:center; padding:24px; color:var(--muted); }
+
+    /* Chip C# al lado de cada G# */
+    .badge-num { font-size:12px; color:var(--muted); margin-left:6px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Resumen de Conteos</h1>
-    <div class="subtitle">Estado por Ubicación → Lote → Producto (política aplicada)</div>
+    <div class="subtitle">
+      Estado por Ubicación → Lote → Producto. Política:
+      <b>2 conteos = Sistema ⇒ Δ = 0</b> ·
+      <b>3 conteos iguales ≠ Sistema ⇒ Δ = Consenso − Sistema</b>
+    </div>
 
     <!-- Toolbar de filtros -->
     <div class="toolbar">
@@ -87,7 +92,7 @@
         <label for="zona">Zona</label>
         <select id="zona">
           {% for z in zonas %}
-            {# value=id para obtener_subzonas; data-nombre para usar en resumen_datos_json #}
+            <!-- value=id para obtener_subzonas; data-nombre para usar en resumen_datos_json -->
             <option value="{{ z.id }}"
                     data-nombre="{{ z.nombre }}"
                     {% if zona_default and z.nombre == zona_default %}selected{% endif %}>
@@ -115,7 +120,7 @@
         <span class="dot"></span><span class="dot"></span><span class="dot"></span>
         <span>Cargando…</span>
       </div>
-
+      <button id="btnExportar" class="btn secondary" type="button">Descargar Excel</button>
       <button class="btn" id="btnRefrescar" type="button">Refrescar</button>
     </div>
 
@@ -131,8 +136,8 @@
             <th class="right">G1</th>
             <th class="right">G2</th>
             <th class="right">G3</th>
-            <th class="right">Objetivo</th>
-            <th class="right">Δ (Obj − Sist)</th>
+            <th class="right">G4</th>
+            <th class="right">Δ (Consenso − Sistema)</th>
             <th>Estado</th>
           </tr>
         </thead>
@@ -185,6 +190,8 @@
       if (v === null || v === undefined || v === '') return '—';
       return Number(v).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    function fmtInt(v){ return (v===null||v===undefined) ? '—' : String(v); }
+    function badgeC(n){ return (n===null||n===undefined) ? '' : `<span class="badge-num">C${fmtInt(n)}</span>`; }
 
     function estadoBadge(txt){
       if (!txt) return '';
@@ -242,10 +249,12 @@
               <td>${row.producto || ''}</td>
               <td>${row.lote || ''}</td>
               <td class="right">${fmt(row.sistema)}</td>
-              <td class="right">${fmt(row.g1)}</td>
-              <td class="right">${fmt(row.g2)}</td>
-              <td class="right">${fmt(row.g3)}</td>
-              <td class="right">${fmt(row.objetivo)}</td>
+
+              <td class="right" title="Nº conteo G1: ${fmtInt(row.g1_n)}">${fmt(row.g1)} ${badgeC(row.g1_n)}</td>
+              <td class="right" title="Nº conteo G2: ${fmtInt(row.g2_n)}">${fmt(row.g2)} ${badgeC(row.g2_n)}</td>
+              <td class="right" title="Nº conteo G3: ${fmtInt(row.g3_n)}">${fmt(row.g3)} ${badgeC(row.g3_n)}</td>
+              <td class="right" title="Nº conteo G4: ${fmtInt(row.g4_n)}">${fmt(row.g4)} ${badgeC(row.g4_n)}</td>
+
               <td class="right">${fmt(row.delta)}</td>
               <td class="status">${estadoBadge(row.estado)}</td>
             </tr>
@@ -296,17 +305,23 @@
     });
     btnRefresh.addEventListener('click', () => loadResumen(currentPage));
 
-    // Init: seleccionar zona/subzona por defecto y cargar tabla
+    // Init
     (async function init(){
-      // Si la opción seleccionada de zona no coincide con zonaDefault, la buscamos:
-      if (zonaDefault){
-        const idx = Array.from(elZona.options).findIndex(o => o.dataset.nombre === zonaDefault);
+      if ("{{ zona_default }}"){
+        const idx = Array.from(elZona.options).findIndex(o => o.dataset.nombre === "{{ zona_default }}");
         if (idx >= 0) elZona.selectedIndex = idx;
       }
-      // Cargar subzonas de esa zona y seleccionar subzonaDefault si existe
-      await cargarSubzonas(elZona.value, subzonaDefault || null);
-      // Cargar datos iniciales
+      await cargarSubzonas(elZona.value, "{{ subzona_default|default:'' }}");
       loadResumen(1);
+
+      // === DESCARGAR EXCEL ===
+    const URL_EXPORT = "{% url 'exportar_resumen_excel' %}";  // usa el name real del path en urls.py
+
+    document.getElementById("btnExportar").addEventListener("click", function () {
+      const zona = optNombreZona();     // función que ya existe en tu JS
+      const subzona = optNombreSub();   // función que ya existe en tu JS
+      window.open(`${URL_EXPORT}`, "_blank");
+    })();
     })();
   </script>
 </body>

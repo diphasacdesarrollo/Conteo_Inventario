@@ -11,7 +11,7 @@ from .models import (
     Conteo, Zona, Subzona, Inventario, Producto, Lote, Comentario
 )
 
-ALLOWED_GROUPS = {1, 2, 3}
+ALLOWED_GROUPS = {1, 2, 3, 4}
 
 def _sanitize_group(val, default=1):
     g = _as_int(val, default)
@@ -270,7 +270,10 @@ TOL = Decimal("0.01")  # tolerancia
 def _resumen_rows(zona_nombre=None, subzona_nombre=None, page=1, page_size=200):
     """
     Devuelve filas del resumen, filtradas por zona/subzona si se pasan.
-    Soporta paginación con LIMIT/OFFSET.
+    Soporta paginación con LIMIT/OFFSET. Política de consenso:
+      (1) OK con sistema si ≥2 grupos ≈ sistema (dentro de TOL)
+      (2) OK entre grupos si ≥3 grupos ≈ entre sí (aunque difiera del sistema)
+      (3) caso contrario -> Pendiente
     """
     # WHERE dinámico
     where = []
@@ -295,10 +298,10 @@ WITH inv AS (
          l.numero_lote  AS lote,
          inv.cantidad   AS sistema
   FROM inventario_inventario inv
-  -- FIX: primero resolvemos el producto por codigo
+  -- 1) resolver producto por código
   LEFT JOIN inventario_producto p
          ON p.codigo = inv.codigo
-  -- FIX: luego resolvemos el lote por (numero_lote + producto_id)
+  -- 2) resolver lote por (numero_lote, producto_id)
   LEFT JOIN inventario_lote l
          ON l.numero_lote = inv.lote
         AND l.producto_id = p.id
@@ -324,11 +327,13 @@ c AS (
 SELECT i.ubicacion, i.producto, i.lote, i.sistema,
        c1.cantidad_encontrada AS g1, c1.numero_conteo AS g1_n,
        c2.cantidad_encontrada AS g2, c2.numero_conteo AS g2_n,
-       c3.cantidad_encontrada AS g3, c3.numero_conteo AS g3_n
+       c3.cantidad_encontrada AS g3, c3.numero_conteo AS g3_n,
+       c4.cantidad_encontrada AS g4, c4.numero_conteo AS g4_n
 FROM inv i
 LEFT JOIN c c1 ON c1.lote_id=i.lote_id AND c1.ubicacion_real=i.ubicacion AND c1.grupo=1
 LEFT JOIN c c2 ON c2.lote_id=i.lote_id AND c2.ubicacion_real=i.ubicacion AND c2.grupo=2
 LEFT JOIN c c3 ON c3.lote_id=i.lote_id AND c3.ubicacion_real=i.ubicacion AND c3.grupo=3
+LEFT JOIN c c4 ON c4.lote_id=i.lote_id AND c4.ubicacion_real=i.ubicacion AND c4.grupo=4
 ORDER BY i.ubicacion, i.producto, i.lote
 LIMIT %s OFFSET %s
         """, [*params, limit, offset])
@@ -338,44 +343,79 @@ LIMIT %s OFFSET %s
     def eq(a, b):
         if a is None or b is None:
             return False
-        from decimal import Decimal as _D
-        _TOL = _D("0.01")
-        return abs(_D(a) - _D(b)) <= _TOL
+        # usar Decimal para comparar con tolerancia exacta
+        return abs(Decimal(str(a)) - Decimal(str(b))) <= TOL
+
+    def float_or_none(v):
+        return None if v is None else float(v)
 
     items = []
     for r in rows:
         sistema = r["sistema"]
-        g1, g2, g3 = r["g1"], r["g2"], r["g3"]
+        g1, g2, g3, g4 = r["g1"], r["g2"], r["g3"], r["g4"]
+
+        # --- CONSENSO ---
+        valores = [v for v in (g1, g2, g3, g4) if v is not None]
 
         objetivo = None
-        if eq(g1, g2): objetivo = g1
-        elif eq(g1, g3): objetivo = g1
-        elif eq(g2, g3): objetivo = g2
+        estado = "Pendiente"
+        delta = None
 
-        llenos = sum(1 for v in (g1, g2, g3) if v is not None)
-        if objetivo is not None:
-            estado = "OK (consenso)"
+        # 1) OK con sistema si ≥2 grupos ≈ sistema
+        match_sis = sum(1 for v in (g1, g2, g3, g4) if eq(v, sistema))
+        if match_sis >= 2 and sistema is not None:
+            objetivo = Decimal(str(sistema))
+            estado = "OK (consenso con sistema)"
         else:
-            estado = f"Pendiente • faltan {max(0, 2 - llenos)}" if llenos < 2 else "Pendiente • falta 1 (3er conteo)"
+            # 2) OK entre grupos si ≥3 grupos ≈ entre sí (cluster por tolerancia)
+            clusters = []  # lista de clusters, cada uno es una lista de valores
+            for v in valores:
+                colocado = False
+                for cset in clusters:
+                    # cercana al representante del cluster
+                    if eq(v, cset[0]):
+                        cset.append(v)
+                        colocado = True
+                        break
+                if not colocado:
+                    clusters.append([v])
+            best = max(clusters, key=len, default=[])
+            if len(best) >= 3:
+                # objetivo = mediana del cluster (robusto)
+                best_sorted = sorted(Decimal(str(x)) for x in best)
+                objetivo = best_sorted[len(best_sorted)//2]
+                if sistema is not None:
+                    delta = float(objetivo - Decimal(str(sistema)))
+                estado = "OK (consenso entre grupos)"
+            else:
+                # 3) Pendiente: calcular “faltan”
+                llenos = len(valores)
+                faltan_sis = max(0, 2 - match_sis)      # para lograr 2-de-4 con sistema
+                faltan_grp = max(0, 3 - len(best))      # para lograr ≥3-de-4 entre grupos
+                faltan = max(faltan_sis, faltan_grp)
+                # si no hay sistema, el faltan_sis no aplica; pero mantener la métrica es útil
+                estado = f"Pendiente • faltan {faltan}"
 
-        delta = (Decimal(str(objetivo)) - Decimal(str(sistema))) if objetivo is not None else None
+        # delta si objetivo existe y hay sistema
+        if objetivo is not None and delta is None and sistema is not None:
+            delta = float(objetivo - Decimal(str(sistema)))
 
-        def _f(v):
-            return None if v is None else float(v)
         items.append({
             "ubicacion": r["ubicacion"],
             "producto":  r["producto"],
             "lote":      str(r["lote"]) if r["lote"] is not None else "",
-            "sistema":   _f(sistema),
-            "g1":        _f(g1), "g1_n": r["g1_n"],
-            "g2":        _f(g2), "g2_n": r["g2_n"],
-            "g3":        _f(g3), "g3_n": r["g3_n"],
-            "objetivo":  _f(objetivo),
-            "delta":     _f(delta),
+            "sistema":   float_or_none(sistema),
+            "g1":        float_or_none(g1), "g1_n": r["g1_n"],
+            "g2":        float_or_none(g2), "g2_n": r["g2_n"],
+            "g3":        float_or_none(g3), "g3_n": r["g3_n"],
+            "g4":        float_or_none(g4), "g4_n": r["g4_n"],
+            "objetivo":  float(objetivo) if isinstance(objetivo, Decimal) else float_or_none(objetivo),
+            "delta":     delta,
             "estado":    estado,
         })
 
     return items
+
 
 
 def resumen_datos_json(request):
@@ -497,3 +537,49 @@ def buscar_productos(request):
         # (en producción usa logging)
         print("buscar_productos error:", e)
         return JsonResponse({"resultados": []})
+    
+from openpyxl import Workbook
+from django.http import HttpResponse
+from datetime import datetime
+
+def exportar_resumen_excel(request):
+    zona = request.GET.get("zona")
+    subzona = request.GET.get("subzona")
+
+    # Usa el mismo generador del resumen (sin paginar)
+    if not zona and not subzona:
+        data = _resumen_rows(page=1, page_size=999999)
+    else:
+        data = _resumen_rows(zona, subzona, page=1, page_size=999999)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Resumen Conteos"
+
+    headers = ["Ubicación","Producto","Lote","Sistema","G1","G2","G3","G4","Δ (Consenso − Sistema)","Estado"]
+    ws.append(headers)
+
+    for r in data:
+        ws.append([
+            r.get("ubicacion"),
+            r.get("producto"),
+            r.get("lote"),
+            r.get("sistema"),
+            r.get("g1"),
+            r.get("g2"),
+            r.get("g3"),
+            r.get("g4"),
+            r.get("delta"),
+            r.get("estado"),
+        ])
+
+    # auto ancho de columnas
+    for col in ws.columns:
+        max_len = max(len(str(c.value or "")) for c in col)
+        ws.column_dimensions[col[0].column_letter].width = max_len + 2
+
+    resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    fn = f"ResumenConteos_{zona or 'ALL'}_{subzona or 'ALL'}_{datetime.now():%Y%m%d_%H%M}.xlsx"
+    resp["Content-Disposition"] = f'attachment; filename="{fn}"'
+    wb.save(resp)
+    return resp
