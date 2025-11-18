@@ -16,7 +16,6 @@ def _sanitize_group(val, default=1):
     g = _as_int(val, default)
     return g if g in ALLOWED_GROUPS else default
 
-
 # =========================
 # Helpers
 # =========================
