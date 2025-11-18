@@ -1,7 +1,7 @@
 # inventario/views.py
 from collections import defaultdict
 from decimal import Decimal
-
+from .models import Inventario
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -267,7 +267,7 @@ def reset_sesion_conteo(request):
 # =========================
 TOL = Decimal("0.01")  # tolerancia
 
-def _resumen_rows(zona_nombre=None, subzona_nombre=None, page=1, page_size=200):
+def _resumen_rows(zona_nombre=None, subzona_nombre=None, page=1, page_size=200, modo="ubicacion"):
     """
     Devuelve filas del resumen, filtradas por zona/subzona si se pasan.
     Soporta paginación con LIMIT/OFFSET. Política de consenso:
@@ -276,18 +276,33 @@ def _resumen_rows(zona_nombre=None, subzona_nombre=None, page=1, page_size=200):
       (3) caso contrario -> Pendiente
     """
     # WHERE dinámico
+    # WHERE dinámico
     where = []
     params = []
-    if zona_nombre and subzona_nombre:
-        where.append("inv.ubicacion = %s")
-        params.append(f"{zona_nombre}-{subzona_nombre}")
-    elif zona_nombre:
-        where.append("inv.ubicacion LIKE %s")
-        params.append(f"{zona_nombre}-%")
+
+    if modo == "ubicacion":
+        # MODO ACTUAL: filtra por Zona/Subzona usando inv.ubicacion
+        if zona_nombre and subzona_nombre:
+            where.append("inv.ubicacion = %s")
+            params.append(f"{zona_nombre}-{subzona_nombre}")
+        elif zona_nombre:
+            where.append("inv.ubicacion LIKE %s")
+            params.append(f"{zona_nombre}-%")
+    elif modo == "producto":
+        # MODO NUEVO: filtra por Código de producto y Lote
+        # zona_nombre = código de producto (ej. IBU200C)
+        # subzona_nombre = lote (ej. L12345)
+        if zona_nombre:
+            where.append("inv.codigo = %s")
+            params.append(zona_nombre)
+        if subzona_nombre:
+            where.append("inv.lote = %s")
+            params.append(subzona_nombre)
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     limit = max(1, int(page_size))
     offset = max(0, (int(page) - 1) * limit)
+
 
     with connection.cursor() as cur:
         cur.execute(f"""
@@ -422,21 +437,42 @@ def resumen_datos_json(request):
     """
     Endpoint JSON del resumen.
     Acepta filtros:
-      - zona: id o nombre
-      - subzona: id o nombre
+      - zona: id o nombre (en modo ubicación) / código de producto (en modo producto)
+      - subzona: id o nombre (en modo ubicación) / número de lote (en modo producto)
       - page, page_size
-    Si no vienen, usa defaults (primera zona/subzona).
+      - modo: 'ubicacion' (por defecto) o 'producto'
+    Si no vienen zona/subzona, usa defaults (primera zona/subzona) solo en modo ubicación.
     """
+    modo = _param(request, "modo", "ubicacion")
     zona_in  = _param(request, "zona", None)
     sub_in   = _param(request, "subzona", None)
     page     = _as_int(_param(request, "page", 1), 1)
     page_sz  = _as_int(_param(request, "page_size", 200), 200)
 
-    # Resolver nombres (con defaults)
-    _, _, zona_nombre, subzona_nombre = _coalesce_zona_subzona_from_params(zona_in, sub_in)
+    if modo == "ubicacion":
+        # Comportamiento original: resolver zona/subzona reales con defaults
+        _, _, zona_nombre, subzona_nombre = _coalesce_zona_subzona_from_params(zona_in, sub_in)
+    else:
+        # MODO PRODUCTO: usar directamente los valores que llegan
+        zona_nombre = zona_in or None       # código de producto
+        subzona_nombre = sub_in or None     # lote
 
-    data = _resumen_rows(zona_nombre=zona_nombre, subzona_nombre=subzona_nombre, page=page, page_size=page_sz)
-    return JsonResponse({"data": data, "zona": zona_nombre, "subzona": subzona_nombre, "page": page, "page_size": page_sz})
+    data = _resumen_rows(
+        zona_nombre=zona_nombre,
+        subzona_nombre=subzona_nombre,
+        page=page,
+        page_size=page_sz,
+        modo=modo,
+    )
+
+    return JsonResponse({
+        "data": data,
+        "zona": zona_nombre,
+        "subzona": subzona_nombre,
+        "modo": modo,
+        "page": page,
+        "page_size": page_sz,
+    })
 
 
 def resumen_inventario(request):
@@ -545,12 +581,13 @@ from datetime import datetime
 def exportar_resumen_excel(request):
     zona = request.GET.get("zona")
     subzona = request.GET.get("subzona")
+    modo = request.GET.get("modo", "ubicacion")
 
     # Usa el mismo generador del resumen (sin paginar)
     if not zona and not subzona:
-        data = _resumen_rows(page=1, page_size=999999)
+        data = _resumen_rows(page=1, page_size=999999, modo=modo)
     else:
-        data = _resumen_rows(zona, subzona, page=1, page_size=999999)
+        data = _resumen_rows(zona, subzona, page=1, page_size=999999, modo=modo)
 
     wb = Workbook()
     ws = wb.active
@@ -583,3 +620,55 @@ def exportar_resumen_excel(request):
     resp["Content-Disposition"] = f'attachment; filename="{fn}"'
     wb.save(resp)
     return resp
+
+def resumen_productos(request):
+    """
+    Devuelve la lista de productos únicos que existen en Inventario,
+    usando el nombre real del producto.
+    """
+    # 1) Códigos únicos que aparecen en Inventario
+    codigos_inv = (
+        Inventario.objects
+        .exclude(codigo__isnull=True)
+        .exclude(codigo='')
+        .values_list("codigo", flat=True)
+        .distinct()
+    )
+
+    # 2) Productos cuyo código está en Inventario
+    qs = (
+        Producto.objects
+        .filter(codigo__in=codigos_inv)
+        .values("codigo", "nombre")
+        .order_by("nombre")
+    )
+
+    data = [
+        {
+            "codigo": row["codigo"],
+            "nombre": row["nombre"],
+        }
+        for row in qs
+    ]
+    return JsonResponse({"productos": data})
+
+def resumen_lotes(request):
+    """
+    Devuelve la lista de lotes únicos filtrados por código de producto.
+    """
+    codigo = request.GET.get("codigo")
+
+    qs = Inventario.objects.all()
+    if codigo:
+        qs = qs.filter(codigo=codigo)
+
+    qs = (
+        qs.exclude(lote__isnull=True)
+          .exclude(lote='')
+          .values('lote')
+          .distinct()
+          .order_by('lote')
+    )
+
+    data = [{"lote": row["lote"]} for row in qs]
+    return JsonResponse({"lotes": data})

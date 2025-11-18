@@ -1,6 +1,8 @@
+<!--inventario/templates/inventario/resumen_inventario.html -->
 {% load static %}
 <!doctype html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8" />
   <title>Resumen de Conteos</title>
@@ -16,313 +18,464 @@
       --muted: #6b7380;
       --border: #e2e8f0;
     }
-    body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";}
-    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
-    h1 { text-align:center; margin: 8px 0 4px; }
-    .subtitle { text-align:center; color:var(--muted); margin-bottom: 16px; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .layout {
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, .10);
+      max-width: 1200px;
+      width: 100%;
+      padding: 20px 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: 800;
+      margin: 0 0 4px;
+    }
+
+    .subtitle-rule {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .subtitle-rule strong {
+      color: var(--blue-2);
+      font-weight: 700;
+    }
+
+    .subtitle-note {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #e0f2fe;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: #0369a1;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .pill span.key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #0ea5e9;
+      color: #fff;
+      font-size: 11px;
+    }
+
+    /* TOOLBAR */
 
     .toolbar {
-      display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;
-      background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px;
-      box-shadow: 0 6px 16px rgba(0,0,0,.05);
-      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      padding: 12px 12px 10px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid var(--border);
     }
-    .field { display:flex; flex-direction:column; gap:6px; }
-    label { font-size: 13px; color: var(--muted); }
-    select, input[type="number"] {
-      height: 36px; padding: 0 10px; border:1px solid var(--border); border-radius:8px; background:#fff;
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 13px;
     }
+
+    .field label {
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .field select,
+    .field input[type="number"] {
+      min-width: 140px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 0 8px;
+      font-size: 13px;
+      background: #fff;
+    }
+
     .btn {
-      display:inline-flex; align-items:center; justify-content:center; gap:8px;
-      height:36px; padding:0 14px; border-radius:8px; border:1px solid var(--blue);
-      background:var(--blue); color:#fff; cursor:pointer; font-weight:600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid var(--blue);
+      background: var(--blue);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
     }
-    .btn.secondary { border-color:var(--border); background:#fff; color:var(--text); }
-    .btn:disabled { opacity:.6; cursor:not-allowed; }
 
-    .table-card{
-      background:#fff; border:1px solid var(--border); border-radius:12px;
-      box-shadow: 0 6px 16px rgba(0,0,0,.05);
-      overflow:hidden;
+    .btn.secondary {
+      border-color: var(--border);
+      background: #fff;
+      color: var(--text);
     }
-    table { width:100%; border-collapse: collapse; }
+
+    .btn:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* TABLA */
+
+    .table-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .05);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
     thead th {
-      position:sticky; top:0; z-index:1;
-      background:var(--blue); color:#fff; text-align:left; padding:10px; font-weight:700; font-size:14px;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--blue);
+      color: #fff;
+      text-align: left;
+      padding: 10px;
+      font-weight: 700;
+      font-size: 14px;
     }
-    tbody td { padding:10px; border-top:1px solid var(--border); background:#fff; font-size:14px; }
-    tbody tr:nth-child(even) td { background:#fafbff; }
-    .badge-ok { color:var(--green); font-weight:700; }
-    .badge-pend { color:var(--orange); font-weight:700; }
-    .muted { color:var(--muted); }
-    .status { white-space:nowrap; }
-    .right { text-align:right; }
 
-    .footerbar{
-      display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#fff; border-top:1px solid var(--border);
+    tbody td {
+      padding: 10px;
+      border-top: 1px solid var(--border);
+      background: #fff;
+      font-size: 14px;
+      vertical-align: top;
     }
-    .pager{ display:flex; gap:8px; align-items:center; }
-    .small { font-size:13px; color:var(--muted); }
 
-    .loader { display:none; gap:8px; align-items:center; color:var(--muted); }
-    .loader.show { display:flex; }
-    .dot { width:8px; height:8px; background:var(--blue); border-radius:50%; animation: blink 1s infinite alternate; }
-    .dot:nth-child(2){ animation-delay: .2s }
-    .dot:nth-child(3){ animation-delay: .4s }
-    @keyframes blink { from{opacity:.25; transform:translateY(2px)} to{opacity:1; transform:translateY(-2px)} }
+    tbody tr:nth-child(even) td {
+      background: #fafbff;
+    }
 
-    .empty { text-align:center; padding:24px; color:var(--muted); }
+    .right {
+      text-align: right;
+    }
 
-    /* Chip C# al lado de cada G# */
-    .badge-num { font-size:12px; color:var(--muted); margin-left:6px; }
+    .empty {
+      text-align: center;
+      padding: 24px;
+      color: var(--muted);
+    }
+
+    /* Estado con colores */
+
+    .status-ok {
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .status-pend {
+      color: var(--orange);
+      font-weight: 700;
+    }
+
+    /* Subíndice debajo de G1–G4 (C1, C2, etc.) */
+
+    .g-conteo-tag {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Footer / paginación */
+
+    .footerbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: #fff;
+      border-top: 1px solid var(--border);
+    }
+
+    .pager {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* Loader */
+
+    .loader {
+      display: none;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+    }
+
+    .loader.show {
+      display: flex;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background: var(--blue);
+      border-radius: 50%;
+      animation: blink 1s infinite alternate;
+    }
+
+    .dot:nth-child(2) {
+      animation-delay: .2s;
+    }
+
+    .dot:nth-child(3) {
+      animation-delay: .4s;
+    }
+
+    @keyframes blink {
+      from {
+        opacity: .25;
+        transform: translateY(2px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(-2px);
+      }
+    }
+
+    /* Responsive */
+
+    @media (max-width: 768px) {
+      .layout {
+        padding: 12px;
+      }
+
+      .card {
+        padding: 16px 12px 12px;
+      }
+
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      thead th,
+      tbody td {
+        font-size: 12px;
+        padding: 8px;
+      }
+
+      .toolbar {
+        padding: 10px;
+      }
+
+      .field select,
+      .field input[type="number"] {
+        min-width: 120px;
+      }
+
+      .footerbar {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+      }
+    }
   </style>
+
 </head>
+
 <body>
-  <div class="wrap">
-    <h1>Resumen de Conteos</h1>
-    <div class="subtitle">
-      Estado por Ubicación → Lote → Producto. Política:
-      <b>2 conteos = Sistema ⇒ Δ = 0</b> ·
-      <b>3 conteos iguales ≠ Sistema ⇒ Δ = Consenso − Sistema</b>
-    </div>
+  <!-- Raíz del resumen: aquí van las URLs que usa conteo.js -->
+  <div id="resumen-root" data-url-resumen="{% url 'resumen_datos_json' %}"
+    data-url-export="{% url 'exportar_resumen_excel' %}">
+    <div class="layout">
+      <div class="card">
+        <!-- Encabezado -->
+        <div class="header">
+          <div>
+            <h1 class="title">Resumen de Conteos</h1>
+            <p class="subtitle-rule">
+              Estado por <strong>Ubicación → Lote → Producto</strong>. Política:
+              <strong>2 conteos = Sistema ⇒ Δ = 0</strong> ·
+              <strong>3 conteos iguales ≠ Sistema ⇒ Δ = Consenso − Sistema</strong>
+            </p>
+            <p class="subtitle-note">
+              Nota: El consenso se calcula según la lógica interna del sistema.
+            </p>
+          </div>
+          <div>
+            <div class="pill">
+              <span class="key">Δ</span>
+              <span>Diferencia Sistema vs Consenso</span>
+            </div>
+          </div>
+        </div>
 
-    <!-- Toolbar de filtros -->
-    <div class="toolbar">
-      <div class="field">
-        <label for="zona">Zona</label>
-        <select id="zona">
-          {% for z in zonas %}
-            <!-- value=id para obtener_subzonas; data-nombre para usar en resumen_datos_json -->
-            <option value="{{ z.id }}"
-                    data-nombre="{{ z.nombre }}"
-                    {% if zona_default and z.nombre == zona_default %}selected{% endif %}>
-              {{ z.nombre }}
-            </option>
-          {% endfor %}
-        </select>
-      </div>
+        <!-- Toolbar filtros -->
+        <div class="toolbar">
+          <!-- Toggle de modo -->
+          <div class="field">
+            <label>Modo de filtro</label>
+            <button type="button" id="toggleModo" class="btn secondary">Filtrar por ubicación</button>
+            <div class="small" id="modoHelp">Usando Zona / Subzona</div>
+            <input type="hidden" id="modo" value="ubicacion">
+          </div>
 
-      <div class="field">
-        <label for="subzona">Subzona</label>
-        <select id="subzona">
-          <!-- se llena por JS con obtener_subzonas -->
-        </select>
-      </div>
+          <!-- Campos modo ubicación -->
+          <div class="field" id="fieldZona">
+            <label for="zona">Zona</label>
+            <select id="zona" data-subzonas-url="{% url 'obtener_subzonas' %}">
+              {% for z in zonas %}
+              {% if zona_default and z.nombre == zona_default %}
+              <option value="{{ z.id }}" data-nombre="{{ z.nombre }}" selected>
+                {{ z.nombre }}
+              </option>
+              {% else %}
+              <option value="{{ z.id }}" data-nombre="{{ z.nombre }}">
+                {{ z.nombre }}
+              </option>
+              {% endif %}
+              {% endfor %}
+            </select>
 
-      <div class="field">
-        <label for="page_size">Filas por página</label>
-        <input type="number" id="page_size" min="50" max="1000" step="50" value="200" />
-      </div>
+          </div>
 
-      <div style="flex:1 1 auto"></div>
+          <div class="field" id="fieldSubzona">
+            <label for="subzona">Subzona</label>
+            <select id="subzona" data-selected="{{ subzona_default|default:'' }}">
+              <option value="">— Selecciona —</option>
+            </select>
+          </div>
 
-      <div class="loader" id="loader">
-        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-        <span>Cargando…</span>
-      </div>
-      <button id="btnExportar" class="btn secondary" type="button">Descargar Excel</button>
-      <button class="btn" id="btnRefrescar" type="button">Refrescar</button>
-    </div>
+          <!-- Campos modo producto -->
+          <div class="field" id="fieldProducto" style="display:none;">
+            <label for="producto_codigo">Producto</label>
+            <select id="producto_codigo" data-url-productos="{% url 'resumen_productos' %}"
+              data-url-lotes="{% url 'resumen_lotes' %}">
+              <option value="">— Selecciona producto —</option>
+            </select>
+          </div>
 
-    <!-- Tabla -->
-    <div class="table-card">
-      <table>
-        <thead>
-          <tr>
-            <th>Ubicación</th>
-            <th>Producto</th>
-            <th>Lote</th>
-            <th class="right">Sistema</th>
-            <th class="right">G1</th>
-            <th class="right">G2</th>
-            <th class="right">G3</th>
-            <th class="right">G4</th>
-            <th class="right">Δ (Consenso − Sistema)</th>
-            <th>Estado</th>
-          </tr>
-        </thead>
-        <tbody id="tbody">
-          <tr><td colspan="10" class="empty">Cargando datos…</td></tr>
-        </tbody>
-      </table>
+          <div class="field" id="fieldLote" style="display:none;">
+            <label for="lote_numero">Lote</label>
+            <select id="lote_numero">
+              <option value="">— Todos los lotes —</option>
+            </select>
+          </div>
 
-      <!-- Footer/Paginación -->
-      <div class="footerbar">
-        <div class="small" id="lblInfo">—</div>
-        <div class="pager">
-          <button class="btn secondary" id="prevBtn" type="button">« Anterior</button>
-          <span class="small" id="pageInfo">Página 1</span>
-          <button class="btn secondary" id="nextBtn" type="button">Siguiente »</button>
+          <div class="field">
+            <label for="page_size">Filas por página</label>
+            <input type="number" id="page_size" min="50" max="1000" step="50" value="200" />
+          </div>
+
+          <div style="flex:1 1 auto"></div>
+
+          <div class="loader" id="loader">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span>Cargando…</span>
+          </div>
+
+          <button class="btn secondary" id="btnExportar" type="button">Descargar Excel</button>
+          <button class="btn" id="btnRefrescar" type="button">Refrescar</button>
+        </div>
+
+        <!-- Tabla -->
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Ubicación</th>
+                <th>Producto</th>
+                <th>Lote</th>
+                <th class="right">Sistema</th>
+                <th class="right">G1</th>
+                <th class="right">G2</th>
+                <th class="right">G3</th>
+                <th class="right">G4</th>
+                <th class="right">Δ (Consenso − Sistema)</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+
+
+            <tbody id="tbody">
+              <tr>
+                <td colspan="10" class="empty">Cargando…</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Footer / paginación -->
+          <div class="footerbar">
+            <div class="small" id="lblInfo">—</div>
+            <div class="pager">
+              <button class="btn secondary" id="prevBtn" type="button">« Anterior</button>
+              <span class="small" id="pageInfo">Página 1</span>
+              <button class="btn secondary" id="nextBtn" type="button">Siguiente »</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-    // URLs (ajusta los names si difieren en tu urls.py)
-    const URL_SUBZONAS = "{% url 'obtener_subzonas' %}";
-    const URL_RESUMEN  = "{% url 'resumen_datos_json' %}";
-
-    // Defaults enviados desde la vista
-    const zonaDefault     = "{{ zona_default|default:'' }}";
-    const subzonaDefault  = "{{ subzona_default|default:'' }}";
-
-    // Estado UI
-    let currentPage = 1;
-
-    const elZona     = document.getElementById('zona');
-    const elSubzona  = document.getElementById('subzona');
-    const elPageSize = document.getElementById('page_size');
-    const elLoader   = document.getElementById('loader');
-    const elTbody    = document.getElementById('tbody');
-    const elInfo     = document.getElementById('lblInfo');
-    const elPageInfo = document.getElementById('pageInfo');
-    const btnPrev    = document.getElementById('prevBtn');
-    const btnNext    = document.getElementById('nextBtn');
-    const btnRefresh = document.getElementById('btnRefrescar');
-
-    // Helpers
-    function showLoader(show){ elLoader.classList.toggle('show', !!show); }
-    function optNombreZona(){ return elZona.options[elZona.selectedIndex]?.dataset?.nombre || ''; }
-    function optNombreSub(){ return elSubzona.options[elSubzona.selectedIndex]?.textContent?.trim() || ''; }
-
-    function fmt(v){
-      if (v === null || v === undefined || v === '') return '—';
-      return Number(v).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    function fmtInt(v){ return (v===null||v===undefined) ? '—' : String(v); }
-    function badgeC(n){ return (n===null||n===undefined) ? '' : `<span class="badge-num">C${fmtInt(n)}</span>`; }
-
-    function estadoBadge(txt){
-      if (!txt) return '';
-      if (txt.startsWith('OK')) return `<span class="badge-ok">${txt}</span>`;
-      return `<span class="badge-pend">${txt}</span>`;
-    }
-
-    async function cargarSubzonas(zonaId, selNombre){
-      elSubzona.innerHTML = `<option>Cargando…</option>`;
-      try{
-        const res = await fetch(`${URL_SUBZONAS}?zona=${encodeURIComponent(zonaId)}`);
-        const data = await res.json();
-        const arr = data.subzonas || [];
-        if (arr.length === 0){
-          elSubzona.innerHTML = `<option value="">—</option>`;
-          return;
-        }
-        elSubzona.innerHTML = arr.map(s => `<option value="${s.id}">${s.nombre}</option>`).join('');
-        // seleccionar por nombre si existe, si no, primera
-        if (selNombre){
-          const idx = Array.from(elSubzona.options).findIndex(o => o.textContent.trim() === selNombre);
-          if (idx >= 0) elSubzona.selectedIndex = idx; else elSubzona.selectedIndex = 0;
-        } else {
-          elSubzona.selectedIndex = 0;
-        }
-      }catch(e){
-        elSubzona.innerHTML = `<option value="">(error)</option>`;
-      }
-    }
-
-    async function loadResumen(page = 1){
-      const zonaNombre = optNombreZona();
-      const subNombre  = optNombreSub();
-      const pageSize   = parseInt(elPageSize.value || '200', 10);
-
-      showLoader(true);
-      elTbody.innerHTML = `<tr><td colspan="10" class="empty">Cargando…</td></tr>`;
-      try{
-        const qs = new URLSearchParams({
-          zona: zonaNombre,
-          subzona: subNombre,
-          page: page,
-          page_size: pageSize
-        });
-        const res = await fetch(`${URL_RESUMEN}?${qs.toString()}`);
-        const json = await res.json();
-        const items = json.data || [];
-
-        if (items.length === 0){
-          elTbody.innerHTML = `<tr><td colspan="10" class="empty">Sin registros para ${zonaNombre}-${subNombre}</td></tr>`;
-        }else{
-          elTbody.innerHTML = items.map(row => `
-            <tr>
-              <td>${row.ubicacion || ''}</td>
-              <td>${row.producto || ''}</td>
-              <td>${row.lote || ''}</td>
-              <td class="right">${fmt(row.sistema)}</td>
-
-              <td class="right" title="Nº conteo G1: ${fmtInt(row.g1_n)}">${fmt(row.g1)} ${badgeC(row.g1_n)}</td>
-              <td class="right" title="Nº conteo G2: ${fmtInt(row.g2_n)}">${fmt(row.g2)} ${badgeC(row.g2_n)}</td>
-              <td class="right" title="Nº conteo G3: ${fmtInt(row.g3_n)}">${fmt(row.g3)} ${badgeC(row.g3_n)}</td>
-              <td class="right" title="Nº conteo G4: ${fmtInt(row.g4_n)}">${fmt(row.g4)} ${badgeC(row.g4_n)}</td>
-
-              <td class="right">${fmt(row.delta)}</td>
-              <td class="status">${estadoBadge(row.estado)}</td>
-            </tr>
-          `).join('');
-        }
-
-        currentPage = page;
-        elPageInfo.textContent = `Página ${currentPage}`;
-        elInfo.textContent = `Zona: ${json.zona} • Subzona: ${json.subzona} • Filas: ${items.length}`;
-
-        // Habilitar/deshabilitar paginación si hizo tope (heurística simple)
-        btnPrev.disabled = currentPage <= 1;
-        btnNext.disabled = items.length < pageSize;
-      }catch(e){
-        elTbody.innerHTML = `<tr><td colspan="10" class="empty">Ocurrió un error al cargar los datos.</td></tr>`;
-      }finally{
-        showLoader(false);
-      }
-    }
-
-    // Eventos
-    elZona.addEventListener('change', async () => {
-      const zonaId = elZona.value;
-      await cargarSubzonas(zonaId, null);
-      currentPage = 1;
-      loadResumen(currentPage);
-    });
-
-    elSubzona.addEventListener('change', () => {
-      currentPage = 1;
-      loadResumen(currentPage);
-    });
-
-    elPageSize.addEventListener('change', () => {
-      currentPage = 1;
-      loadResumen(currentPage);
-    });
-
-    btnPrev.addEventListener('click', () => {
-      if (currentPage > 1) {
-        currentPage -= 1;
-        loadResumen(currentPage);
-      }
-    });
-    btnNext.addEventListener('click', () => {
-      currentPage += 1;
-      loadResumen(currentPage);
-    });
-    btnRefresh.addEventListener('click', () => loadResumen(currentPage));
-
-    // Init
-    (async function init(){
-      if ("{{ zona_default }}"){
-        const idx = Array.from(elZona.options).findIndex(o => o.dataset.nombre === "{{ zona_default }}");
-        if (idx >= 0) elZona.selectedIndex = idx;
-      }
-      await cargarSubzonas(elZona.value, "{{ subzona_default|default:'' }}");
-      loadResumen(1);
-
-      // === DESCARGAR EXCEL ===
-    const URL_EXPORT = "{% url 'exportar_resumen_excel' %}";  // usa el name real del path en urls.py
-
-    document.getElementById("btnExportar").addEventListener("click", function () {
-      const zona = optNombreZona();     // función que ya existe en tu JS
-      const subzona = optNombreSub();   // función que ya existe en tu JS
-      window.open(`${URL_EXPORT}`, "_blank");
-    })();
-    })();
-  </script>
+  <!-- ÚNICO JS: toda la lógica está en conteo.js -->
+  <script src="{% static 'inventario/js/conteo.js' %}"></script>
 </body>
+
 </html>
