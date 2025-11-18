@@ -26,5 +26,7 @@ urlpatterns = [
     
     path('resumen/productos/', views.resumen_productos, name='resumen_productos'),
     path('resumen/lotes/', views.resumen_lotes, name='resumen_lotes'),
+    
+    path("resumen/comentarios/", views.listar_comentarios_json, name="listar_comentarios"),
 
 ] 

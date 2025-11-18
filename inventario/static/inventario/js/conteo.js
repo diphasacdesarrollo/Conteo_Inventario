@@ -552,10 +552,11 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             // Subíndices de conteo: intentamos con C1/C2/C3/C4 en mayúscula y minúscula
-            const g1Tag = row.C1 || row.c1 || "";
-            const g2Tag = row.C2 || row.c2 || "";
-            const g3Tag = row.C3 || row.c3 || "";
-            const g4Tag = row.C4 || row.c4 || "";
+            const g1Tag = row.g1_n ? `C${row.g1_n}` : "";
+            const g2Tag = row.g2_n ? `C${row.g2_n}` : "";
+            const g3Tag = row.g3_n ? `C${row.g3_n}` : "";
+            const g4Tag = row.g4_n ? `C${row.g4_n}` : "";
+
 
             tr.innerHTML = `
     <td>${row.ubicacion || ""}</td>
@@ -707,4 +708,34 @@ document.addEventListener("DOMContentLoaded", () => {
     // Primera carga (modo por defecto: ubicación)
     loadResumen(1);
   })();
+
+  document.getElementById("btnComentarios").addEventListener("click", () => {
+  const url = document.getElementById("resumen-root").dataset.urlComentarios 
+    || "/resumen/comentarios/";
+
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      const tbody = document.getElementById("tbodyComentarios");
+      tbody.innerHTML = "";
+
+      data.comentarios.forEach(c => {
+        tbody.innerHTML += `
+          <tr>
+            <td style="padding:6px; border:1px solid #ccc;">${c.id}</td>
+            <td style="padding:6px; border:1px solid #ccc;">${c.grupo}</td>
+            <td style="padding:6px; border:1px solid #ccc;">${c.numero_conteo}</td>
+            <td style="padding:6px; border:1px solid #ccc;">${c.ubicacion_real}</td>
+            <td style="padding:6px; border:1px solid #ccc;">${c.comentario}</td>
+            <td style="padding:6px; border:1px solid #ccc;">${c.fecha}</td>
+          </tr>`;
+      });
+
+      document.getElementById("modalComentarios").style.display = "flex";
+    });
+});
+
+document.getElementById("cerrarModalComentarios").addEventListener("click", () => {
+  document.getElementById("modalComentarios").style.display = "none";
+});
 });

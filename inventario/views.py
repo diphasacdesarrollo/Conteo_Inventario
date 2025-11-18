@@ -1,7 +1,6 @@
 # inventario/views.py
 from collections import defaultdict
 from decimal import Decimal
-from .models import Inventario
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -672,3 +671,20 @@ def resumen_lotes(request):
 
     data = [{"lote": row["lote"]} for row in qs]
     return JsonResponse({"lotes": data})
+
+def listar_comentarios_json(request):
+    from .models import Comentario
+    comentarios = Comentario.objects.all().order_by("-fecha")[:500]
+
+    data = [
+        {
+            "id": c.id,
+            "grupo": c.grupo,
+            "numero_conteo": c.numero_conteo,
+            "ubicacion_real": c.ubicacion_real,
+            "comentario": c.comentario,
+            "fecha": c.fecha.strftime("%Y-%m-%d %H:%M"),
+        }
+        for c in comentarios
+    ]
+    return JsonResponse({"comentarios": data})
