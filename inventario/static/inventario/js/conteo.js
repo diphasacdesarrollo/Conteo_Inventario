@@ -7,28 +7,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const subzonaSelect = document.getElementById("subzona");
 
   if (zonaSelect && subzonaSelect) {
-    const urlSubzonas =
-      zonaSelect.dataset.subzonasUrl || "/subzonas/";
+    const urlSubzonas = zonaSelect.dataset.subzonasUrl || "/subzonas/";
 
     async function loadSubzonas(zonaId, selectedId) {
       subzonaSelect.disabled = true;
-      subzonaSelect.innerHTML =
-        '<option value="">Cargando…</option>';
+      subzonaSelect.innerHTML = '<option value="">Cargando…</option>';
       try {
         const res = await fetch(
           `${urlSubzonas}?zona=${encodeURIComponent(zonaId)}`
         );
         const data = await res.json();
-        subzonaSelect.innerHTML =
-          '<option value="">— Selecciona —</option>';
+        subzonaSelect.innerHTML = '<option value="">— Selecciona —</option>';
         (data.subzonas || []).forEach((sub) => {
           const opt = document.createElement("option");
           opt.value = sub.id;
           opt.textContent = sub.nombre;
-          if (
-            selectedId != null &&
-            String(selectedId) === String(sub.id)
-          ) {
+          if (selectedId != null && String(selectedId) === String(sub.id)) {
             opt.selected = true;
           }
           subzonaSelect.appendChild(opt);
@@ -43,8 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     zonaSelect.addEventListener("change", () => {
       const zonaId = zonaSelect.value;
-      subzonaSelect.innerHTML =
-        '<option value="">— Selecciona —</option>';
+      subzonaSelect.innerHTML = '<option value="">— Selecciona —</option>';
       if (zonaId) loadSubzonas(zonaId, null);
     });
 
@@ -53,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
       loadSubzonas(zonaSelect.value, selected);
     }
 
-    // Exponer para otros scripts si hace falta
+    // Exponer por si otro script lo necesita
     window.__conteo_loadSubzonas__ = loadSubzonas;
   }
 
@@ -102,16 +95,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    async function setZonaSubzona(
-      zonaId,
-      subzonaId,
-      zonaTexto,
-      subzonaTexto
-    ) {
+    async function setZonaSubzona(zonaId, subzonaId, zonaTexto, subzonaTexto) {
+      // Caso ideal: vienen IDs
       if (zonaSelect && subzonaSelect && zonaId) {
         zonaSelect.value = String(zonaId);
         zonaSelect.dispatchEvent(new Event("change"));
-        // esperar a que carguen subzonas
         for (let i = 0; i < 12; i++) {
           if (
             [...subzonaSelect.options].some(
@@ -127,12 +115,11 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Fallback por texto (si no vinieron IDs)
+      // Fallback: por texto
       if (zonaSelect && zonaTexto) {
         const optZona = [...zonaSelect.options].find(
           (o) =>
-            (o.textContent || "").trim() ===
-            String(zonaTexto).trim()
+            (o.textContent || "").trim() === String(zonaTexto).trim()
         );
         if (optZona) {
           zonaSelect.value = optZona.value;
@@ -202,7 +189,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return [];
     }
 
-    // Debounce + búsqueda
     let timer = null;
     buscador.addEventListener("input", () => {
       const q = buscador.value.trim();
@@ -243,12 +229,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 data-subzona="${(it.subzona_nombre || "")
                   .replace(/"/g, "&quot;")}">
               <div style="font-weight:600">
-                ${it.producto_nombre || "(sin nombre)"} · Lote ${it.lote_numero || "-"
+                ${it.producto_nombre || "(sin nombre)"} · Lote ${
+                  it.lote_numero || "-"
                 }
               </div>
               <div style="font-size:12px;color:#6b7280">
-                Zona: ${it.zona_nombre || "-"} · Subzona: ${it.subzona_nombre || "-"
-                }
+                Zona: ${it.zona_nombre || "-"} · Subzona: ${
+                it.subzona_nombre || "-"
+              }
               </div>
             </li>
           `
@@ -261,7 +249,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 180);
     });
 
-    // Selección de sugerencia
     lista.addEventListener("mousedown", async (ev) => {
       const li = ev.target.closest("li.item");
       if (!li) return;
@@ -273,8 +260,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const zonaTxt = li.getAttribute("data-zona");
       const subzonaTxt = li.getAttribute("data-subzona");
 
-      buscador.value = `${producto}${lote ? " · Lote " + lote : ""
-        }`;
+      buscador.value = `${producto}${
+        lote ? " · Lote " + lote : ""
+      }`;
 
       await setZonaSubzona(zonaId, subzonaId, zonaTxt, subzonaTxt);
       agregarComentario(producto, lote, zonaTxt, subzonaTxt);
@@ -282,7 +270,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ocultarLista();
     });
 
-    // Botón “Usar en comentario”
     if (btnUsar) {
       btnUsar.addEventListener("click", () => {
         const q = (buscador.value || "").trim();
@@ -303,7 +290,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================
-  // 3) RESUMEN INVENTARIO
+  // 3) RESUMEN INVENTARIO + MODAL EXPORT
   // =========================
   (function initResumenInventario() {
     const tbodyDetalle = document.getElementById("tbody");
@@ -333,9 +320,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const inputLote = document.getElementById("lote_numero");
     const estadoFiltro = document.getElementById("estado_filtro");
 
-    // 🔹 Modal de exportación
+    // Modal export
     const modalExport = document.getElementById("modalExportExcel");
-    const btnExportVistaActual = document.getElementById("btnExportVistaActual");
+    const btnExportVistaActual = document.getElementById(
+      "btnExportVistaActual"
+    );
     const btnExportCompleto = document.getElementById("btnExportCompleto");
     const btnExportCancelar = document.getElementById("btnExportCancelar");
 
@@ -348,8 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
       !btnNext ||
       !pageSizeInp
     ) {
-      // No estamos en la página de resumen
-      return;
+      return; // no estamos en esta página
     }
 
     const rootResumen = document.getElementById("resumen-root");
@@ -363,13 +351,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const urlProductos = inputProducto
       ? inputProducto.dataset.urlProductos
       : null;
-    const urlLotes = inputProducto
-      ? inputProducto.dataset.urlLotes
-      : null;
+    const urlLotes = inputProducto ? inputProducto.dataset.urlLotes : null;
 
-    // Estado interno
-    let filterMode = inputModo ? inputModo.value || "ubicacion" : "ubicacion"; // 'ubicacion' | 'producto'
-    let viewMode = "detalle"; // 'detalle' | 'producto_general'
+    let filterMode = inputModo ? inputModo.value || "ubicacion" : "ubicacion"; // ubicacion | producto
+    let viewMode = "detalle"; // detalle | producto_general
     let currentPage = 1;
 
     function fmt(n) {
@@ -394,36 +379,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function optNombreSubzona() {
       if (!subzonaSelect) return "";
-      const opt = subzonaSelect.options[subzonaSelect.selectedIndex];
+      const opt =
+        subzonaSelect.options[subzonaSelect.selectedIndex];
       return opt ? opt.textContent.trim() : "";
     }
 
     function getZonaParam() {
-      if (filterMode === "ubicacion") {
-        return optNombreZona();
-      }
-      // modo producto => código de producto
+      if (filterMode === "ubicacion") return optNombreZona();
       return (inputProducto ? inputProducto.value : "").trim();
     }
 
     function getSubzonaParam() {
-      if (filterMode === "ubicacion") {
-        return optNombreSubzona();
-      }
-      // modo producto => lote
+      if (filterMode === "ubicacion") return optNombreSubzona();
       return (inputLote ? inputLote.value : "").trim();
     }
 
     function syncUI() {
-      // Qué tarjeta se ve
-      if (cardDetalle) {
-        cardDetalle.style.display = viewMode === "detalle" ? "" : "none";
-      }
-      if (cardProdGen) {
-        cardProdGen.style.display = viewMode === "producto_general" ? "" : "none";
-      }
+      if (cardDetalle)
+        cardDetalle.style.display =
+          viewMode === "detalle" ? "" : "none";
+      if (cardProdGen)
+        cardProdGen.style.display =
+          viewMode === "producto_general" ? "" : "none";
 
-      // Filtros visibles según vista
       if (viewMode === "detalle") {
         if (filterMode === "ubicacion") {
           if (fieldZona) fieldZona.style.display = "";
@@ -437,24 +415,26 @@ document.addEventListener("DOMContentLoaded", () => {
           if (fieldSubzona) fieldSubzona.style.display = "none";
           if (fieldProducto) fieldProducto.style.display = "";
           if (fieldLote) fieldLote.style.display = "";
-          if (modoHelp) modoHelp.textContent = "Usando Código de producto / Lote";
+          if (modoHelp)
+            modoHelp.textContent = "Usando Código de producto / Lote";
           if (toggleModo) toggleModo.textContent = "Filtrar por ubicación";
         }
       } else {
-        // Producto General
         if (fieldZona) fieldZona.style.display = "none";
         if (fieldSubzona) fieldSubzona.style.display = "none";
         if (fieldProducto) fieldProducto.style.display = "";
         if (fieldLote) fieldLote.style.display = "";
-        if (modoHelp) modoHelp.textContent = "Resumen global por Producto / Lote";
+        if (modoHelp)
+          modoHelp.textContent = "Resumen global por Producto / Lote";
         if (toggleModo) toggleModo.textContent = "Volver a detalle";
       }
 
       if (inputModo) inputModo.value = filterMode;
 
-      // Paginación solo en detalle
-      if (btnPrev) btnPrev.style.display = viewMode === "detalle" ? "" : "none";
-      if (btnNext) btnNext.style.display = viewMode === "detalle" ? "" : "none";
+      if (btnPrev)
+        btnPrev.style.display = viewMode === "detalle" ? "" : "none";
+      if (btnNext)
+        btnNext.style.display = viewMode === "detalle" ? "" : "none";
       if (pageInfo) {
         pageInfo.textContent =
           viewMode === "detalle"
@@ -463,34 +443,38 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // --- Combos producto / lote ---
+    // --- combos producto/lote ---
     async function loadProductos(selectedCodigo) {
       if (!inputProducto || !urlProductos) return;
       inputProducto.disabled = true;
-      inputProducto.innerHTML = '<option value="">Cargando productos…</option>';
-
+      inputProducto.innerHTML =
+        '<option value="">Cargando productos…</option>';
       try {
         const res = await fetch(urlProductos);
         const data = await res.json();
         const items = data.productos || [];
-
         if (!items.length) {
-          inputProducto.innerHTML = '<option value="">(sin productos)</option>';
+          inputProducto.innerHTML =
+            '<option value="">(sin productos)</option>';
           return;
         }
-
-        inputProducto.innerHTML = '<option value="">— Selecciona producto —</option>';
+        inputProducto.innerHTML =
+          '<option value="">— Selecciona producto —</option>';
         items.forEach((p) => {
           const opt = document.createElement("option");
           opt.value = p.codigo;
           opt.textContent = p.nombre || "";
-          if (selectedCodigo && String(selectedCodigo) === String(p.codigo)) {
+          if (
+            selectedCodigo &&
+            String(selectedCodigo) === String(p.codigo)
+          ) {
             opt.selected = true;
           }
           inputProducto.appendChild(opt);
         });
-      } catch (e) {
-        inputProducto.innerHTML = '<option value="">Error al cargar</option>';
+      } catch {
+        inputProducto.innerHTML =
+          '<option value="">Error al cargar</option>';
       } finally {
         inputProducto.disabled = false;
       }
@@ -499,38 +483,42 @@ document.addEventListener("DOMContentLoaded", () => {
     async function loadLotes(codigo, selectedLote) {
       if (!inputLote || !urlLotes) return;
       inputLote.disabled = true;
-      inputLote.innerHTML = '<option value="">Cargando lotes…</option>';
-
+      inputLote.innerHTML =
+        '<option value="">Cargando lotes…</option>';
       try {
         const params = new URLSearchParams();
         if (codigo) params.set("codigo", codigo);
         const res = await fetch(`${urlLotes}?${params.toString()}`);
         const data = await res.json();
         const items = data.lotes || [];
-
-        inputLote.innerHTML = '<option value="">— Todos los lotes —</option>';
+        inputLote.innerHTML =
+          '<option value="">— Todos los lotes —</option>';
         items.forEach((l) => {
           const opt = document.createElement("option");
           opt.value = l.lote;
           opt.textContent = l.lote;
-          if (selectedLote && String(selectedLote) === String(l.lote)) {
+          if (
+            selectedLote &&
+            String(selectedLote) === String(l.lote)
+          ) {
             opt.selected = true;
           }
           inputLote.appendChild(opt);
         });
-      } catch (e) {
-        inputLote.innerHTML = '<option value="">Error al cargar lotes</option>';
+      } catch {
+        inputLote.innerHTML =
+          '<option value="">Error al cargar lotes</option>';
       } finally {
         inputLote.disabled = false;
       }
     }
 
-    // --- Cargar tabla DETALLE ---
+    // --- DETALLE ---
     async function loadDetalle(page) {
       const zonaParam = getZonaParam();
       const subParam = getSubzonaParam();
       const pageSize = parseInt(pageSizeInp.value || "200", 10);
-      const estado = estadoFiltro ? (estadoFiltro.value || "") : "";
+      const estado = estadoFiltro ? estadoFiltro.value || "" : "";
 
       showLoader(true);
       tbodyDetalle.innerHTML =
@@ -544,9 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
           page,
           page_size: pageSize,
         });
-        if (estado) {
-          qs.set("estado", estado);
-        }
+        if (estado) qs.set("estado", estado);
 
         const res = await fetch(`${URL_RESUMEN}?${qs.toString()}`);
         const json = await res.json();
@@ -561,13 +547,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const tr = document.createElement("tr");
 
             const estadoTxt = row.estado || "";
-            let estadoClass = "";
             const estadoLower = estadoTxt.toLowerCase();
-            if (estadoLower.startsWith("ok")) {
-              estadoClass = "status-ok";
-            } else if (estadoLower.startsWith("pendiente")) {
+            let estadoClass = "";
+            if (estadoLower.startsWith("ok")) estadoClass = "status-ok";
+            else if (estadoLower.startsWith("pendiente"))
               estadoClass = "status-pend";
-            }
 
             const g1Tag = row.g1_n ? `C${row.g1_n}` : "";
             const g2Tag = row.g2_n ? `C${row.g2_n}` : "";
@@ -606,9 +590,13 @@ document.addEventListener("DOMContentLoaded", () => {
         pageInfo.textContent = `Página ${currentPage}`;
 
         if (filterMode === "producto") {
-          infoLabel.textContent = `Producto: ${json.zona || "—"} • Lote: ${json.subzona || "—"} • Filas: ${items.length}`;
+          infoLabel.textContent = `Producto: ${json.zona || "—"} • Lote: ${
+            json.subzona || "—"
+          } • Filas: ${items.length}`;
         } else {
-          infoLabel.textContent = `Zona: ${json.zona || "—"} • Subzona: ${json.subzona || "—"} • Filas: ${items.length}`;
+          infoLabel.textContent = `Zona: ${json.zona || "—"} • Subzona: ${
+            json.subzona || "—"
+          } • Filas: ${items.length}`;
         }
 
         btnPrev.disabled = currentPage <= 1;
@@ -621,7 +609,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // --- Cargar tabla PRODUCTO GENERAL ---
+    // --- PRODUCTO GENERAL ---
     async function loadProductoGeneral() {
       const codigo = (inputProducto ? inputProducto.value : "").trim();
       const lote = (inputLote ? inputLote.value : "").trim();
@@ -638,18 +626,15 @@ document.addEventListener("DOMContentLoaded", () => {
           page: 1,
           page_size: 5000,
         });
-
         const res = await fetch(`${URL_RESUMEN}?${qs.toString()}`);
         const json = await res.json();
         const items = json.data || [];
 
         const agg = new Map();
-
         for (const row of items) {
           const prod = row.producto || "";
           const loteNum = row.lote || "";
           const key = `${prod}||${loteNum}`;
-
           if (!agg.has(key)) {
             agg.set(key, {
               producto: prod,
@@ -662,7 +647,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
           }
           const acc = agg.get(key);
-
           const addNum = (field) => {
             const v = row[field];
             if (v !== null && v !== undefined && v !== "") {
@@ -670,7 +654,6 @@ document.addEventListener("DOMContentLoaded", () => {
               if (!isNaN(num)) acc[field] += num;
             }
           };
-
           addNum("sistema");
           addNum("g1");
           addNum("g2");
@@ -700,11 +683,13 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
 
-        infoLabel.textContent = `Producto General · Producto: ${json.zona || "—"} · Lote: ${json.subzona || "—"} · Filas: ${rowsAgg.length}`;
+        infoLabel.textContent = `Producto General · Producto: ${
+          json.zona || "—"
+        } · Lote: ${json.subzona || "—"} · Filas: ${rowsAgg.length}`;
         pageInfo.textContent = "Vista Producto General";
         btnPrev.disabled = true;
         btnNext.disabled = true;
-      } catch (e) {
+      } catch {
         tbodyProdGen.innerHTML =
           '<tr><td colspan="7" class="empty">Ocurrió un error al cargar los datos.</td></tr>';
       } finally {
@@ -712,8 +697,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // --- EVENTOS DE FILTROS ---
-
+    // --- eventos filtros/paginación ---
     if (zonaSelect && subzonaSelect) {
       zonaSelect.addEventListener("change", () => {
         if (viewMode !== "detalle" || filterMode !== "ubicacion") return;
@@ -780,25 +764,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (btnRefresh) {
       btnRefresh.addEventListener("click", () => {
-        if (viewMode === "detalle") {
-          loadDetalle(currentPage);
-        } else {
-          loadProductoGeneral();
-        }
+        if (viewMode === "detalle") loadDetalle(currentPage);
+        else loadProductoGeneral();
       });
     }
 
     if (toggleModo) {
       toggleModo.addEventListener("click", () => {
         if (viewMode === "producto_general") {
-          // Volver a detalle por ubicación
           viewMode = "detalle";
           filterMode = "ubicacion";
           currentPage = 1;
           syncUI();
           loadDetalle(currentPage);
         } else {
-          // Alternar ubicación / producto en detalle
           filterMode =
             filterMode === "ubicacion" ? "producto" : "ubicacion";
           viewMode = "detalle";
@@ -822,9 +801,10 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    // --------- 🔽 EXPORTAR EXCEL CON MODAL 🔽 ---------
+    // --- Exportar Excel con modal ---
     function doExport(alcance) {
-      const vista = viewMode === "producto_general" ? "producto_general" : "detalle";
+      const vista =
+        viewMode === "producto_general" ? "producto_general" : "detalle";
       const qs = new URLSearchParams();
       qs.set("modo", filterMode);
       qs.set("vista", vista);
@@ -835,7 +815,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const subzona = getSubzonaParam();
         if (zona) qs.set("zona", zona);
         if (subzona) qs.set("subzona", subzona);
-
         if (vista === "detalle" && estadoFiltro) {
           const estado = estadoFiltro.value || "";
           if (estado) qs.set("estado", estado);
@@ -847,7 +826,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function openExportModal() {
       if (!modalExport) {
-        // fallback por si acaso
         doExport("actual");
         return;
       }
@@ -855,9 +833,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function closeExportModal() {
-      if (modalExport) {
-        modalExport.style.display = "none";
-      }
+      if (modalExport) modalExport.style.display = "none";
     }
 
     if (btnExport) {
@@ -884,14 +860,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (modalExport) {
       modalExport.addEventListener("click", (e) => {
-        if (e.target === modalExport) {
-          closeExportModal();
-        }
+        if (e.target === modalExport) closeExportModal();
       });
     }
-    // --------- 🔼 EXPORTAR EXCEL CON MODAL 🔼 ---------
 
-    // Inicializar
+    // Inicial
     syncUI();
     if (inputProducto && urlProductos) {
       loadProductos(null);
@@ -902,10 +875,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================
   // 4) MODAL DE COMENTARIOS
   // =========================
+  const modalComentarios = document.getElementById("modalComentarios");
   const btnComentarios = document.getElementById("btnComentarios");
   const btnCerrarModal = document.getElementById("cerrarModalComentarios");
 
-  if (btnComentarios && btnCerrarModal) {
+  if (modalComentarios && btnComentarios) {
+    // Abrir modal y cargar datos
     btnComentarios.addEventListener("click", () => {
       const root = document.getElementById("resumen-root");
       const url =
@@ -916,28 +891,52 @@ document.addEventListener("DOMContentLoaded", () => {
         .then((r) => r.json())
         .then((data) => {
           const tbody = document.getElementById("tbodyComentarios");
-          tbody.innerHTML = "";
+          if (!tbody) return;
 
+          tbody.innerHTML = "";
           (data.comentarios || []).forEach((c) => {
             tbody.innerHTML += `
-          <tr>
-            <td style="padding:6px; border:1px solid #ccc;">${c.id}</td>
-            <td style="padding:6px; border:1px solid #ccc;">${c.grupo}</td>
-            <td style="padding:6px; border:1px solid #ccc;">${c.numero_conteo}</td>
-            <td style="padding:6px; border:1px solid #ccc;">${c.ubicacion_real}</td>
-            <td style="padding:6px; border:1px solid #ccc;">${c.comentario}</td>
-            <td style="padding:6px; border:1px solid #ccc;">${c.fecha}</td>
-          </tr>`;
+              <tr>
+                <td style="padding:6px; border:1px solid #ccc;">${c.id}</td>
+                <td style="padding:6px; border:1px solid #ccc;">${c.grupo}</td>
+                <td style="padding:6px; border:1px solid #ccc;">${c.numero_conteo}</td>
+                <td style="padding:6px; border:1px solid #ccc;">${c.ubicacion_real}</td>
+                <td style="padding:6px; border:1px solid #ccc;">${c.comentario}</td>
+                <td style="padding:6px; border:1px solid #ccc;">${c.fecha}</td>
+              </tr>`;
           });
 
-          document.getElementById("modalComentarios").style.display =
-            "flex";
+          // Mostrar modal
+          modalComentarios.style.display = "flex";
+        })
+        .catch((err) => {
+          console.error("Error cargando comentarios:", err);
+          modalComentarios.style.display = "flex"; // igual abrimos para que puedas cerrar
         });
     });
 
-    btnCerrarModal.addEventListener("click", () => {
-      document.getElementById("modalComentarios").style.display =
-        "none";
+    // Botón "Cerrar"
+    if (btnCerrarModal) {
+      btnCerrarModal.addEventListener("click", () => {
+        modalComentarios.style.display = "none";
+      });
+    }
+
+    // Cerrar haciendo clic en el fondo gris
+    modalComentarios.addEventListener("click", (e) => {
+      if (e.target === modalComentarios) {
+        modalComentarios.style.display = "none";
+      }
+    });
+
+    // Cerrar con la tecla ESC
+    document.addEventListener("keydown", (e) => {
+      if (
+        e.key === "Escape" &&
+        modalComentarios.style.display === "flex"
+      ) {
+        modalComentarios.style.display = "none";
+      }
     });
   }
 });
