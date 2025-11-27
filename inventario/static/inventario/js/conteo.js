@@ -53,18 +53,17 @@ document.addEventListener("DOMContentLoaded", () => {
       loadSubzonas(zonaSelect.value, selected);
     }
 
-    // Exponer para uso desde otros scripts si se necesita
+    // Exponer para otros scripts si hace falta
     window.__conteo_loadSubzonas__ = loadSubzonas;
   }
 
   // =========================
-  // 2) BUSCADOR INTEGRAL (INCIDENCIAS)
+  // 2) BUSCADOR (incidencias)
   // =========================
   const buscador = document.getElementById("buscador-incidencia");
   const btnUsar = document.getElementById("btn-usar-en-comentario");
   const txtInc = document.getElementById("incidencia_comentario");
 
-  // Solo inicializamos el buscador si existe en esta página
   if (buscador) {
     const lista = document.createElement("ul");
     lista.id = "sugerencias-incidencia";
@@ -81,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
       maxHeight: "280px",
       overflow: "auto",
       display: "none",
-      boxShadow: "0 4px 12px rgba(0,0,0,.08)"
+      boxShadow: "0 4px 12px rgba(0,0,0,.08)",
     });
     document.body.appendChild(lista);
 
@@ -180,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (fila)
           fila.scrollIntoView({
             behavior: "smooth",
-            block: "center"
+            block: "center",
           });
       } catch {
         // no-op
@@ -195,7 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
           zona_id: "",
           zona_nombre: "",
           subzona_id: "",
-          subzona_nombre: ""
+          subzona_nombre: "",
         }));
       }
       if (data && Array.isArray(data.resultados))
@@ -203,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return [];
     }
 
-    // Debounce + envío de filtros
+    // Debounce + búsqueda
     let timer = null;
     buscador.addEventListener("input", () => {
       const q = buscador.value.trim();
@@ -218,7 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const params = new URLSearchParams({
             q,
             zona_id: zonaSelect?.value || "",
-            subzona_id: subzonaSelect?.value || ""
+            subzona_id: subzonaSelect?.value || "",
           });
           const res = await fetch(
             `/buscar-productos/?${params.toString()}`
@@ -304,10 +303,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================
-  // 3) RESUMEN INVENTARIO (MODO UBICACIÓN / PRODUCTO)
+  // 3) RESUMEN INVENTARIO
   // =========================
   (function initResumenInventario() {
-    const tbody = document.getElementById("tbody");
+    const tbodyDetalle = document.getElementById("tbody");
+    const tbodyProdGen = document.getElementById("tbodyProductoGeneral");
+    const cardDetalle = document.getElementById("cardDetalle");
+    const cardProdGen = document.getElementById("cardProductoGeneral");
+
     const loader = document.getElementById("loader");
     const infoLabel = document.getElementById("lblInfo");
     const pageInfo = document.getElementById("pageInfo");
@@ -318,6 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnExport = document.getElementById("btnExportar");
 
     const toggleModo = document.getElementById("toggleModo");
+    const btnProductoGeneral = document.getElementById("btnProductoGeneral");
     const modoHelp = document.getElementById("modoHelp");
     const inputModo = document.getElementById("modo");
 
@@ -327,10 +331,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const fieldLote = document.getElementById("fieldLote");
     const inputProducto = document.getElementById("producto_codigo");
     const inputLote = document.getElementById("lote_numero");
+    const estadoFiltro = document.getElementById("estado_filtro");
 
-    // Si no hay tabla de resumen, no hacemos nada (p.ej. en conteo_producto.html)
+    // 🔹 Modal de exportación
+    const modalExport = document.getElementById("modalExportExcel");
+    const btnExportVistaActual = document.getElementById("btnExportVistaActual");
+    const btnExportCompleto = document.getElementById("btnExportCompleto");
+    const btnExportCancelar = document.getElementById("btnExportCancelar");
+
     if (
-      !tbody ||
+      !tbodyDetalle ||
       !loader ||
       !infoLabel ||
       !pageInfo ||
@@ -338,10 +348,10 @@ document.addEventListener("DOMContentLoaded", () => {
       !btnNext ||
       !pageSizeInp
     ) {
+      // No estamos en la página de resumen
       return;
     }
 
-    // Raíz del resumen: URLs para datos y exportar
     const rootResumen = document.getElementById("resumen-root");
     const URL_RESUMEN = rootResumen
       ? rootResumen.dataset.urlResumen
@@ -350,7 +360,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ? rootResumen.dataset.urlExport
       : "/resumen/exportar/";
 
-    // URLs para combos de producto/lote
     const urlProductos = inputProducto
       ? inputProducto.dataset.urlProductos
       : null;
@@ -358,10 +367,10 @@ document.addEventListener("DOMContentLoaded", () => {
       ? inputProducto.dataset.urlLotes
       : null;
 
+    // Estado interno
+    let filterMode = inputModo ? inputModo.value || "ubicacion" : "ubicacion"; // 'ubicacion' | 'producto'
+    let viewMode = "detalle"; // 'detalle' | 'producto_general'
     let currentPage = 1;
-    let currentMode = inputModo
-      ? inputModo.value || "ubicacion"
-      : "ubicacion";
 
     function fmt(n) {
       if (n === null || n === undefined) return "";
@@ -383,54 +392,82 @@ document.addEventListener("DOMContentLoaded", () => {
         : "";
     }
 
-    function optNombreSub() {
+    function optNombreSubzona() {
       if (!subzonaSelect) return "";
       const opt = subzonaSelect.options[subzonaSelect.selectedIndex];
       return opt ? opt.textContent.trim() : "";
     }
 
-    function syncModoUI() {
-      if (!toggleModo || !modoHelp) return;
-      if (currentMode === "ubicacion") {
-        toggleModo.textContent = "Filtrar por ubicación";
-        modoHelp.textContent = "Usando Zona / Subzona";
-        if (fieldZona) fieldZona.style.display = "";
-        if (fieldSubzona) fieldSubzona.style.display = "";
-        if (fieldProducto) fieldProducto.style.display = "none";
-        if (fieldLote) fieldLote.style.display = "none";
-      } else {
-        toggleModo.textContent = "Filtrar por producto";
-        modoHelp.textContent =
-          "Usando Código de producto / Lote";
-        if (fieldZona) fieldZona.style.display = "none";
-        if (fieldSubzona) fieldSubzona.style.display = "none";
-        if (fieldProducto) fieldProducto.style.display = "";
-        if (fieldLote) fieldLote.style.display = "";
-      }
-      if (inputModo) inputModo.value = currentMode;
-    }
-
     function getZonaParam() {
-      if (currentMode === "ubicacion") {
+      if (filterMode === "ubicacion") {
         return optNombreZona();
       }
+      // modo producto => código de producto
       return (inputProducto ? inputProducto.value : "").trim();
     }
 
     function getSubzonaParam() {
-      if (currentMode === "ubicacion") {
-        return optNombreSub();
+      if (filterMode === "ubicacion") {
+        return optNombreSubzona();
       }
+      // modo producto => lote
       return (inputLote ? inputLote.value : "").trim();
     }
 
-    // Cargar productos únicos
+    function syncUI() {
+      // Qué tarjeta se ve
+      if (cardDetalle) {
+        cardDetalle.style.display = viewMode === "detalle" ? "" : "none";
+      }
+      if (cardProdGen) {
+        cardProdGen.style.display = viewMode === "producto_general" ? "" : "none";
+      }
+
+      // Filtros visibles según vista
+      if (viewMode === "detalle") {
+        if (filterMode === "ubicacion") {
+          if (fieldZona) fieldZona.style.display = "";
+          if (fieldSubzona) fieldSubzona.style.display = "";
+          if (fieldProducto) fieldProducto.style.display = "none";
+          if (fieldLote) fieldLote.style.display = "none";
+          if (modoHelp) modoHelp.textContent = "Usando Zona / Subzona";
+          if (toggleModo) toggleModo.textContent = "Filtrar por producto";
+        } else {
+          if (fieldZona) fieldZona.style.display = "none";
+          if (fieldSubzona) fieldSubzona.style.display = "none";
+          if (fieldProducto) fieldProducto.style.display = "";
+          if (fieldLote) fieldLote.style.display = "";
+          if (modoHelp) modoHelp.textContent = "Usando Código de producto / Lote";
+          if (toggleModo) toggleModo.textContent = "Filtrar por ubicación";
+        }
+      } else {
+        // Producto General
+        if (fieldZona) fieldZona.style.display = "none";
+        if (fieldSubzona) fieldSubzona.style.display = "none";
+        if (fieldProducto) fieldProducto.style.display = "";
+        if (fieldLote) fieldLote.style.display = "";
+        if (modoHelp) modoHelp.textContent = "Resumen global por Producto / Lote";
+        if (toggleModo) toggleModo.textContent = "Volver a detalle";
+      }
+
+      if (inputModo) inputModo.value = filterMode;
+
+      // Paginación solo en detalle
+      if (btnPrev) btnPrev.style.display = viewMode === "detalle" ? "" : "none";
+      if (btnNext) btnNext.style.display = viewMode === "detalle" ? "" : "none";
+      if (pageInfo) {
+        pageInfo.textContent =
+          viewMode === "detalle"
+            ? `Página ${currentPage}`
+            : "Vista Producto General";
+      }
+    }
+
+    // --- Combos producto / lote ---
     async function loadProductos(selectedCodigo) {
       if (!inputProducto || !urlProductos) return;
-
       inputProducto.disabled = true;
-      inputProducto.innerHTML =
-        '<option value="">Cargando productos…</option>';
+      inputProducto.innerHTML = '<option value="">Cargando productos…</option>';
 
       try {
         const res = await fetch(urlProductos);
@@ -438,230 +475,255 @@ document.addEventListener("DOMContentLoaded", () => {
         const items = data.productos || [];
 
         if (!items.length) {
-          inputProducto.innerHTML =
-            '<option value="">(sin productos)</option>';
+          inputProducto.innerHTML = '<option value="">(sin productos)</option>';
           return;
         }
 
-        inputProducto.innerHTML =
-          '<option value="">— Selecciona producto —</option>';
+        inputProducto.innerHTML = '<option value="">— Selecciona producto —</option>';
         items.forEach((p) => {
           const opt = document.createElement("option");
           opt.value = p.codigo;
           opt.textContent = p.nombre || "";
-          if (
-            selectedCodigo &&
-            String(selectedCodigo) === String(p.codigo)
-          ) {
+          if (selectedCodigo && String(selectedCodigo) === String(p.codigo)) {
             opt.selected = true;
           }
           inputProducto.appendChild(opt);
         });
       } catch (e) {
-        inputProducto.innerHTML =
-          '<option value="">Error al cargar</option>';
+        inputProducto.innerHTML = '<option value="">Error al cargar</option>';
       } finally {
         inputProducto.disabled = false;
       }
     }
 
-    // Cargar lotes por producto
     async function loadLotes(codigo, selectedLote) {
       if (!inputLote || !urlLotes) return;
-
       inputLote.disabled = true;
-      inputLote.innerHTML =
-        '<option value="">Cargando lotes…</option>';
+      inputLote.innerHTML = '<option value="">Cargando lotes…</option>';
 
       try {
         const params = new URLSearchParams();
         if (codigo) params.set("codigo", codigo);
-
-        const res = await fetch(
-          `${urlLotes}?${params.toString()}`
-        );
+        const res = await fetch(`${urlLotes}?${params.toString()}`);
         const data = await res.json();
         const items = data.lotes || [];
 
-        inputLote.innerHTML =
-          '<option value="">— Todos los lotes —</option>';
-
+        inputLote.innerHTML = '<option value="">— Todos los lotes —</option>';
         items.forEach((l) => {
           const opt = document.createElement("option");
           opt.value = l.lote;
           opt.textContent = l.lote;
-          if (
-            selectedLote &&
-            String(selectedLote) === String(l.lote)
-          ) {
+          if (selectedLote && String(selectedLote) === String(l.lote)) {
             opt.selected = true;
           }
           inputLote.appendChild(opt);
         });
       } catch (e) {
-        inputLote.innerHTML =
-          '<option value="">Error al cargar lotes</option>';
+        inputLote.innerHTML = '<option value="">Error al cargar lotes</option>';
       } finally {
         inputLote.disabled = false;
       }
     }
 
-    async function loadResumen(page) {
+    // --- Cargar tabla DETALLE ---
+    async function loadDetalle(page) {
       const zonaParam = getZonaParam();
       const subParam = getSubzonaParam();
-      const pageSize = parseInt(
-        pageSizeInp.value || "200",
-        10
-      );
+      const pageSize = parseInt(pageSizeInp.value || "200", 10);
+      const estado = estadoFiltro ? (estadoFiltro.value || "") : "";
 
       showLoader(true);
-      tbody.innerHTML =
+      tbodyDetalle.innerHTML =
         '<tr><td colspan="10" class="empty">Cargando…</td></tr>';
 
       try {
         const qs = new URLSearchParams({
-          modo: currentMode,
+          modo: filterMode,
           zona: zonaParam,
           subzona: subParam,
           page,
-          page_size: pageSize
+          page_size: pageSize,
         });
+        if (estado) {
+          qs.set("estado", estado);
+        }
 
-        const res = await fetch(
-          `${URL_RESUMEN}?${qs.toString()}`
-        );
+        const res = await fetch(`${URL_RESUMEN}?${qs.toString()}`);
         const json = await res.json();
         const items = json.data || [];
 
-        tbody.innerHTML = "";
-        if (items.length === 0) {
-          tbody.innerHTML =
+        tbodyDetalle.innerHTML = "";
+        if (!items.length) {
+          tbodyDetalle.innerHTML =
             '<tr><td colspan="10" class="empty">Sin datos para el filtro seleccionado.</td></tr>';
         } else {
           for (const row of items) {
             const tr = document.createElement("tr");
 
-            const estado = row.estado || "";
+            const estadoTxt = row.estado || "";
             let estadoClass = "";
-            const estadoLower = estado.toLowerCase();
-
+            const estadoLower = estadoTxt.toLowerCase();
             if (estadoLower.startsWith("ok")) {
               estadoClass = "status-ok";
             } else if (estadoLower.startsWith("pendiente")) {
               estadoClass = "status-pend";
             }
 
-            // Subíndices de conteo: intentamos con C1/C2/C3/C4 en mayúscula y minúscula
             const g1Tag = row.g1_n ? `C${row.g1_n}` : "";
             const g2Tag = row.g2_n ? `C${row.g2_n}` : "";
             const g3Tag = row.g3_n ? `C${row.g3_n}` : "";
             const g4Tag = row.g4_n ? `C${row.g4_n}` : "";
 
-
             tr.innerHTML = `
-    <td>${row.ubicacion || ""}</td>
-    <td>${row.producto || ""}</td>
-    <td>${row.lote || ""}</td>
-    <td class="right">${fmt(row.sistema)}</td>
-
-    <td class="right">
-      ${fmt(row.g1)}
-      ${g1Tag ? `<span class="g-conteo-tag">${g1Tag}</span>` : ""}
-    </td>
-    <td class="right">
-      ${fmt(row.g2)}
-      ${g2Tag ? `<span class="g-conteo-tag">${g2Tag}</span>` : ""}
-    </td>
-    <td class="right">
-      ${fmt(row.g3)}
-      ${g3Tag ? `<span class="g-conteo-tag">${g3Tag}</span>` : ""}
-    </td>
-    <td class="right">
-      ${fmt(row.g4)}
-      ${g4Tag ? `<span class="g-conteo-tag">${g4Tag}</span>` : ""}
-    </td>
-
-    <td class="right">${fmt(row.delta)}</td>
-    <td class="status ${estadoClass}">${estado}</td>
-  `;
-            tbody.appendChild(tr);
+              <td>${row.ubicacion || ""}</td>
+              <td>${row.producto || ""}</td>
+              <td>${row.lote || ""}</td>
+              <td class="right">${fmt(row.sistema)}</td>
+              <td class="right">
+                ${fmt(row.g1)}
+                ${g1Tag ? `<span class="g-conteo-tag">${g1Tag}</span>` : ""}
+              </td>
+              <td class="right">
+                ${fmt(row.g2)}
+                ${g2Tag ? `<span class="g-conteo-tag">${g2Tag}</span>` : ""}
+              </td>
+              <td class="right">
+                ${fmt(row.g3)}
+                ${g3Tag ? `<span class="g-conteo-tag">${g3Tag}</span>` : ""}
+              </td>
+              <td class="right">
+                ${fmt(row.g4)}
+                ${g4Tag ? `<span class="g-conteo-tag">${g4Tag}</span>` : ""}
+              </td>
+              <td class="right">${fmt(row.delta)}</td>
+              <td class="status ${estadoClass}">${estadoTxt}</td>
+            `;
+            tbodyDetalle.appendChild(tr);
           }
-
-
         }
 
         currentPage = page;
         pageInfo.textContent = `Página ${currentPage}`;
 
-        const modoRespuesta =
-          json.modo || currentMode || "ubicacion";
-        if (modoRespuesta === "producto") {
-          infoLabel.textContent = `Producto: ${json.zona || "—"
-            } • Lote: ${json.subzona || "—"} • Filas: ${items.length
-            }`;
+        if (filterMode === "producto") {
+          infoLabel.textContent = `Producto: ${json.zona || "—"} • Lote: ${json.subzona || "—"} • Filas: ${items.length}`;
         } else {
-          infoLabel.textContent = `Zona: ${json.zona || "—"
-            } • Subzona: ${json.subzona || "—"} • Filas: ${items.length
-            }`;
+          infoLabel.textContent = `Zona: ${json.zona || "—"} • Subzona: ${json.subzona || "—"} • Filas: ${items.length}`;
         }
 
         btnPrev.disabled = currentPage <= 1;
         btnNext.disabled = items.length < pageSize;
       } catch (e) {
-        tbody.innerHTML =
+        tbodyDetalle.innerHTML =
           '<tr><td colspan="10" class="empty">Ocurrió un error al cargar los datos.</td></tr>';
       } finally {
         showLoader(false);
       }
     }
 
-    // --- Eventos ---
+    // --- Cargar tabla PRODUCTO GENERAL ---
+    async function loadProductoGeneral() {
+      const codigo = (inputProducto ? inputProducto.value : "").trim();
+      const lote = (inputLote ? inputLote.value : "").trim();
+
+      showLoader(true);
+      tbodyProdGen.innerHTML =
+        '<tr><td colspan="7" class="empty">Cargando…</td></tr>';
+
+      try {
+        const qs = new URLSearchParams({
+          modo: "producto",
+          zona: codigo,
+          subzona: lote,
+          page: 1,
+          page_size: 5000,
+        });
+
+        const res = await fetch(`${URL_RESUMEN}?${qs.toString()}`);
+        const json = await res.json();
+        const items = json.data || [];
+
+        const agg = new Map();
+
+        for (const row of items) {
+          const prod = row.producto || "";
+          const loteNum = row.lote || "";
+          const key = `${prod}||${loteNum}`;
+
+          if (!agg.has(key)) {
+            agg.set(key, {
+              producto: prod,
+              lote: loteNum,
+              sistema: 0,
+              g1: 0,
+              g2: 0,
+              g3: 0,
+              g4: 0,
+            });
+          }
+          const acc = agg.get(key);
+
+          const addNum = (field) => {
+            const v = row[field];
+            if (v !== null && v !== undefined && v !== "") {
+              const num = Number(v);
+              if (!isNaN(num)) acc[field] += num;
+            }
+          };
+
+          addNum("sistema");
+          addNum("g1");
+          addNum("g2");
+          addNum("g3");
+          addNum("g4");
+        }
+
+        const rowsAgg = Array.from(agg.values());
+        tbodyProdGen.innerHTML = "";
+
+        if (!rowsAgg.length) {
+          tbodyProdGen.innerHTML =
+            '<tr><td colspan="7" class="empty">Sin datos para el filtro seleccionado.</td></tr>';
+        } else {
+          rowsAgg.forEach((r) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>${r.producto}</td>
+              <td>${r.lote}</td>
+              <td class="right">${fmt(r.sistema)}</td>
+              <td class="right">${fmt(r.g1)}</td>
+              <td class="right">${fmt(r.g2)}</td>
+              <td class="right">${fmt(r.g3)}</td>
+              <td class="right">${fmt(r.g4)}</td>
+            `;
+            tbodyProdGen.appendChild(tr);
+          });
+        }
+
+        infoLabel.textContent = `Producto General · Producto: ${json.zona || "—"} · Lote: ${json.subzona || "—"} · Filas: ${rowsAgg.length}`;
+        pageInfo.textContent = "Vista Producto General";
+        btnPrev.disabled = true;
+        btnNext.disabled = true;
+      } catch (e) {
+        tbodyProdGen.innerHTML =
+          '<tr><td colspan="7" class="empty">Ocurrió un error al cargar los datos.</td></tr>';
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    // --- EVENTOS DE FILTROS ---
+
     if (zonaSelect && subzonaSelect) {
       zonaSelect.addEventListener("change", () => {
-        if (currentMode !== "ubicacion") return;
+        if (viewMode !== "detalle" || filterMode !== "ubicacion") return;
         currentPage = 1;
-        loadResumen(currentPage);
+        loadDetalle(currentPage);
       });
-
       subzonaSelect.addEventListener("change", () => {
-        if (currentMode !== "ubicacion") return;
+        if (viewMode !== "detalle" || filterMode !== "ubicacion") return;
         currentPage = 1;
-        loadResumen(currentPage);
-      });
-    }
-
-    pageSizeInp.addEventListener("change", () => {
-      currentPage = 1;
-      loadResumen(currentPage);
-    });
-
-    btnPrev.addEventListener("click", () => {
-      if (currentPage <= 1) return;
-      currentPage -= 1;
-      loadResumen(currentPage);
-    });
-
-    btnNext.addEventListener("click", () => {
-      currentPage += 1;
-      loadResumen(currentPage);
-    });
-
-    if (btnRefresh) {
-      btnRefresh.addEventListener("click", () => {
-        currentPage = 1;
-        loadResumen(currentPage);
-      });
-    }
-
-    if (toggleModo) {
-      toggleModo.addEventListener("click", () => {
-        currentMode =
-          currentMode === "ubicacion"
-            ? "producto"
-            : "ubicacion";
-        syncModoUI();
-        currentPage = 1;
-        loadResumen(currentPage);
+        loadDetalle(currentPage);
       });
     }
 
@@ -669,58 +731,195 @@ document.addEventListener("DOMContentLoaded", () => {
       inputProducto.addEventListener("change", () => {
         const codigo = inputProducto.value || "";
         loadLotes(codigo, null);
-        currentPage = 1;
-        loadResumen(currentPage);
+        if (viewMode === "detalle" && filterMode === "producto") {
+          currentPage = 1;
+          loadDetalle(currentPage);
+        } else if (viewMode === "producto_general") {
+          loadProductoGeneral();
+        }
       });
     }
 
     if (inputLote) {
       inputLote.addEventListener("change", () => {
-        currentPage = 1;
-        loadResumen(currentPage);
+        if (viewMode === "detalle" && filterMode === "producto") {
+          currentPage = 1;
+          loadDetalle(currentPage);
+        } else if (viewMode === "producto_general") {
+          loadProductoGeneral();
+        }
       });
+    }
+
+    if (estadoFiltro) {
+      estadoFiltro.addEventListener("change", () => {
+        if (viewMode !== "detalle") return;
+        currentPage = 1;
+        loadDetalle(currentPage);
+      });
+    }
+
+    pageSizeInp.addEventListener("change", () => {
+      if (viewMode !== "detalle") return;
+      currentPage = 1;
+      loadDetalle(currentPage);
+    });
+
+    btnPrev.addEventListener("click", () => {
+      if (viewMode !== "detalle") return;
+      if (currentPage <= 1) return;
+      currentPage -= 1;
+      loadDetalle(currentPage);
+    });
+
+    btnNext.addEventListener("click", () => {
+      if (viewMode !== "detalle") return;
+      currentPage += 1;
+      loadDetalle(currentPage);
+    });
+
+    if (btnRefresh) {
+      btnRefresh.addEventListener("click", () => {
+        if (viewMode === "detalle") {
+          loadDetalle(currentPage);
+        } else {
+          loadProductoGeneral();
+        }
+      });
+    }
+
+    if (toggleModo) {
+      toggleModo.addEventListener("click", () => {
+        if (viewMode === "producto_general") {
+          // Volver a detalle por ubicación
+          viewMode = "detalle";
+          filterMode = "ubicacion";
+          currentPage = 1;
+          syncUI();
+          loadDetalle(currentPage);
+        } else {
+          // Alternar ubicación / producto en detalle
+          filterMode =
+            filterMode === "ubicacion" ? "producto" : "ubicacion";
+          viewMode = "detalle";
+          currentPage = 1;
+          syncUI();
+          loadDetalle(currentPage);
+        }
+      });
+    }
+
+    if (btnProductoGeneral) {
+      btnProductoGeneral.addEventListener("click", () => {
+        filterMode = "producto";
+        viewMode = "producto_general";
+        syncUI();
+        if (inputProducto && urlProductos && !inputProducto.options.length) {
+          loadProductos(null).then(() => loadProductoGeneral());
+        } else {
+          loadProductoGeneral();
+        }
+      });
+    }
+
+    // --------- 🔽 EXPORTAR EXCEL CON MODAL 🔽 ---------
+    function doExport(alcance) {
+      const vista = viewMode === "producto_general" ? "producto_general" : "detalle";
+      const qs = new URLSearchParams();
+      qs.set("modo", filterMode);
+      qs.set("vista", vista);
+      qs.set("alcance", alcance);
+
+      if (alcance === "actual") {
+        const zona = getZonaParam();
+        const subzona = getSubzonaParam();
+        if (zona) qs.set("zona", zona);
+        if (subzona) qs.set("subzona", subzona);
+
+        if (vista === "detalle" && estadoFiltro) {
+          const estado = estadoFiltro.value || "";
+          if (estado) qs.set("estado", estado);
+        }
+      }
+
+      window.open(`${URL_EXPORT}?${qs.toString()}`, "_blank");
+    }
+
+    function openExportModal() {
+      if (!modalExport) {
+        // fallback por si acaso
+        doExport("actual");
+        return;
+      }
+      modalExport.style.display = "flex";
+    }
+
+    function closeExportModal() {
+      if (modalExport) {
+        modalExport.style.display = "none";
+      }
     }
 
     if (btnExport) {
       btnExport.addEventListener("click", () => {
-        const zona = getZonaParam();
-        const subzona = getSubzonaParam();
-        const qs = new URLSearchParams({
-          modo: currentMode,
-          zona,
-          subzona
-        });
-        window.open(
-          `${URL_EXPORT}?${qs.toString()}`,
-          "_blank"
-        );
+        openExportModal();
       });
     }
+    if (btnExportVistaActual) {
+      btnExportVistaActual.addEventListener("click", () => {
+        doExport("actual");
+        closeExportModal();
+      });
+    }
+    if (btnExportCompleto) {
+      btnExportCompleto.addEventListener("click", () => {
+        doExport("completo");
+        closeExportModal();
+      });
+    }
+    if (btnExportCancelar) {
+      btnExportCancelar.addEventListener("click", () => {
+        closeExportModal();
+      });
+    }
+    if (modalExport) {
+      modalExport.addEventListener("click", (e) => {
+        if (e.target === modalExport) {
+          closeExportModal();
+        }
+      });
+    }
+    // --------- 🔼 EXPORTAR EXCEL CON MODAL 🔼 ---------
 
-    // Inicialización
-    syncModoUI();
-
-    // Precargar productos (para modo producto)
+    // Inicializar
+    syncUI();
     if (inputProducto && urlProductos) {
       loadProductos(null);
     }
-
-    // Primera carga (modo por defecto: ubicación)
-    loadResumen(1);
+    loadDetalle(1);
   })();
 
-  document.getElementById("btnComentarios").addEventListener("click", () => {
-  const url = document.getElementById("resumen-root").dataset.urlComentarios 
-    || "/resumen/comentarios/";
+  // =========================
+  // 4) MODAL DE COMENTARIOS
+  // =========================
+  const btnComentarios = document.getElementById("btnComentarios");
+  const btnCerrarModal = document.getElementById("cerrarModalComentarios");
 
-  fetch(url)
-    .then(r => r.json())
-    .then(data => {
-      const tbody = document.getElementById("tbodyComentarios");
-      tbody.innerHTML = "";
+  if (btnComentarios && btnCerrarModal) {
+    btnComentarios.addEventListener("click", () => {
+      const root = document.getElementById("resumen-root");
+      const url =
+        (root && root.dataset.urlComentarios) ||
+        "/resumen/comentarios/";
 
-      data.comentarios.forEach(c => {
-        tbody.innerHTML += `
+      fetch(url)
+        .then((r) => r.json())
+        .then((data) => {
+          const tbody = document.getElementById("tbodyComentarios");
+          tbody.innerHTML = "";
+
+          (data.comentarios || []).forEach((c) => {
+            tbody.innerHTML += `
           <tr>
             <td style="padding:6px; border:1px solid #ccc;">${c.id}</td>
             <td style="padding:6px; border:1px solid #ccc;">${c.grupo}</td>
@@ -729,13 +928,16 @@ document.addEventListener("DOMContentLoaded", () => {
             <td style="padding:6px; border:1px solid #ccc;">${c.comentario}</td>
             <td style="padding:6px; border:1px solid #ccc;">${c.fecha}</td>
           </tr>`;
-      });
+          });
 
-      document.getElementById("modalComentarios").style.display = "flex";
+          document.getElementById("modalComentarios").style.display =
+            "flex";
+        });
     });
-});
 
-document.getElementById("cerrarModalComentarios").addEventListener("click", () => {
-  document.getElementById("modalComentarios").style.display = "none";
-});
+    btnCerrarModal.addEventListener("click", () => {
+      document.getElementById("modalComentarios").style.display =
+        "none";
+    });
+  }
 });

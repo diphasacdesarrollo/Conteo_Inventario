@@ -18,7 +18,7 @@
       --muted: #6b7380;
       --border: #e2e8f0;
     }
-    
+
     body {
       margin: 0;
       background: var(--bg);
@@ -169,7 +169,15 @@
       color: var(--muted);
     }
 
-    /* TABLA */
+    /* Botón grupo modo */
+
+    .mode-buttons {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    /* TABLAS */
 
     .table-card {
       background: #fff;
@@ -177,6 +185,7 @@
       border-radius: 12px;
       box-shadow: 0 6px 16px rgba(0, 0, 0, .05);
       overflow: hidden;
+      margin-top: 4px;
     }
 
     table {
@@ -368,10 +377,19 @@
 
         <!-- Toolbar filtros -->
         <div class="toolbar">
-          <!-- Toggle de modo -->
+          <!-- Grupo modo filtro -->
           <div class="field">
             <label>Modo de filtro</label>
-            <button type="button" id="toggleModo" class="btn secondary">Filtrar por ubicación</button>
+            <div class="mode-buttons">
+              <!-- Botón original: alterna entre ubicación / producto -->
+              <button type="button" id="toggleModo" class="btn secondary">
+                Filtrar por ubicación
+              </button>
+              <!-- 🆕 Botón Producto General -->
+              <button type="button" id="btnProductoGeneral" class="btn secondary">
+                Producto General
+              </button>
+            </div>
             <div class="small" id="modoHelp">Usando Zona / Subzona</div>
             <input type="hidden" id="modo" value="ubicacion">
           </div>
@@ -392,7 +410,6 @@
               {% endif %}
               {% endfor %}
             </select>
-
           </div>
 
           <div class="field" id="fieldSubzona">
@@ -402,7 +419,7 @@
             </select>
           </div>
 
-          <!-- Campos modo producto -->
+          <!-- Campos modo producto (detalle) -->
           <div class="field" id="fieldProducto" style="display:none;">
             <label for="producto_codigo">Producto</label>
             <select id="producto_codigo" data-url-productos="{% url 'resumen_productos' %}"
@@ -415,6 +432,15 @@
             <label for="lote_numero">Lote</label>
             <select id="lote_numero">
               <option value="">— Todos los lotes —</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="estado_filtro">Estado</label>
+            <select id="estado_filtro">
+              <option value="">Todos</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="ok">Completado</option>
             </select>
           </div>
 
@@ -434,8 +460,8 @@
           <button class="btn" id="btnRefrescar" type="button">Refrescar</button>
         </div>
 
-        <!-- Tabla -->
-        <div class="table-card">
+        <!-- Tabla DETALLE (original: ubicación / producto / lote) -->
+        <div class="table-card" id="cardDetalle">
           <table>
             <thead>
               <tr>
@@ -451,7 +477,6 @@
                 <th>Estado</th>
               </tr>
             </thead>
-
 
             <tbody id="tbody">
               <tr>
@@ -470,12 +495,80 @@
             </div>
           </div>
         </div>
+
+        <!-- 🆕 Tabla PRODUCTO GENERAL -->
+        <div class="table-card" id="cardProductoGeneral" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Lote</th>
+                <th class="right">Sistema</th>
+                <th class="right">G1</th>
+                <th class="right">G2</th>
+                <th class="right">G3</th>
+                <th class="right">G4</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyProductoGeneral">
+              <tr>
+                <td colspan="7" class="empty">
+                  Selecciona un filtro y pulsa <strong>Producto General</strong>.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
       </div>
     </div>
   </div>
 
   <!-- ÚNICO JS: toda la lógica está en conteo.js -->
   <script src="{% static 'inventario/js/conteo.js' %}"></script>
+
+    <!-- Modal para elegir tipo de exportación -->
+  <div id="modalExportExcel" style="
+    display:none;
+    position:fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:rgba(0,0,0,.45);
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+  ">
+    <div style="
+      background:#fff;
+      padding:20px 24px;
+      border-radius:14px;
+      box-shadow:0 10px 25px rgba(15,23,42,.25);
+      width:95%;
+      max-width:420px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    ">
+      <h3 style="margin:0 0 8px; font-size:18px; color:#111827;">
+        ¿Qué deseas exportar?
+      </h3>
+      <p style="margin:0 0 16px; font-size:14px; color:#4b5563;">
+        Elige el alcance de la descarga en Excel para esta vista.
+      </p>
+
+      <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+        <button type="button" class="btn secondary" id="btnExportCancelar">
+          Cancelar
+        </button>
+        <button type="button" class="btn secondary" id="btnExportCompleto">
+          Listado completo
+        </button>
+        <button type="button" class="btn" id="btnExportVistaActual">
+          Vista actual
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal comentarios existente -->
   <div id="modalComentarios" style="
   display:none;
   position:fixed;
@@ -485,37 +578,51 @@
   align-items:center;
   justify-content:center;
   z-index:9999;
-">
-  <div style="
-    background:#fff;
-    padding:20px;
-    border-radius:12px;
-    width:95%;
-    max-width:900px;
-    max-height:85vh;
-    overflow:auto;
   ">
-    <h2 style="margin-top:0;">Comentarios registrados</h2>
+  ...
 
-    <table style="width:100%; border-collapse:collapse;">
-      <thead>
-        <tr style="background:#eee;">
-          <th style="padding:8px; border:1px solid #ccc;">ID</th>
-          <th style="padding:8px; border:1px solid #ccc;">Grupo</th>
-          <th style="padding:8px; border:1px solid #ccc;">Conteo</th>
-          <th style="padding:8px; border:1px solid #ccc;">Ubicación</th>
-          <th style="padding:8px; border:1px solid #ccc;">Comentario</th>
-          <th style="padding:8px; border:1px solid #ccc;">Fecha</th>
-        </tr>
-      </thead>
-      <tbody id="tbodyComentarios"></tbody>
-    </table>
 
-    <div style="text-align:right; margin-top:15px;">
-      <button class="btn secondary" id="cerrarModalComentarios">Cerrar</button>
+  <!-- Modal de comentarios -->
+  <div id="modalComentarios" style="
+    display:none;
+    position:fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background:rgba(0,0,0,.4);
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+  ">
+    <div style="
+      background:#fff;
+      padding:20px;
+      border-radius:12px;
+      width:95%;
+      max-width:900px;
+      max-height:85vh;
+      overflow:auto;
+    ">
+      <h2 style="margin-top:0;">Comentarios registrados</h2>
+
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="background:#eee;">
+            <th style="padding:8px; border:1px solid #ccc;">ID</th>
+            <th style="padding:8px; border:1px solid #ccc;">Grupo</th>
+            <th style="padding:8px; border:1px solid #ccc;">Conteo</th>
+            <th style="padding:8px; border:1px solid #ccc;">Ubicación</th>
+            <th style="padding:8px; border:1px solid #ccc;">Comentario</th>
+            <th style="padding:8px; border:1px solid #ccc;">Fecha</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyComentarios"></tbody>
+      </table>
+
+      <div style="text-align:right; margin-top:15px;">
+        <button class="btn secondary" id="cerrarModalComentarios">Cerrar</button>
+      </div>
     </div>
   </div>
-</div>
 
 </body>
 

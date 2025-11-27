@@ -439,6 +439,7 @@ def resumen_datos_json(request):
       - subzona: id o nombre (en modo ubicación) / número de lote (en modo producto)
       - page, page_size
       - modo: 'ubicacion' (por defecto) o 'producto'
+      - estado: '', 'pendiente', 'ok'  (solo vistas detalle)
     Si no vienen zona/subzona, usa defaults (primera zona/subzona) solo en modo ubicación.
     """
     modo = _param(request, "modo", "ubicacion")
@@ -447,14 +448,22 @@ def resumen_datos_json(request):
     page     = _as_int(_param(request, "page", 1), 1)
     page_sz  = _as_int(_param(request, "page_size", 200), 200)
 
-    if modo == "ubicacion":
-        # Comportamiento original: resolver zona/subzona reales con defaults
-        _, _, zona_nombre, subzona_nombre = _coalesce_zona_subzona_from_params(zona_in, sub_in)
-    else:
-        # MODO PRODUCTO: usar directamente los valores que llegan
-        zona_nombre = zona_in or None       # código de producto
-        subzona_nombre = sub_in or None     # lote
+    # Filtro de estado: se aplica solo sobre las filas que devuelve _resumen_rows
+    estado_filtro = (_param(request, "estado", "") or "").lower()
 
+    if modo == "ubicacion":
+        # Resolver zona/subzona a nombres reales con soporte de defaults
+        _, _, zona_nombre, subzona_nombre = _coalesce_zona_subzona_from_params(
+            zona_in,
+            sub_in,
+        )
+    else:
+        # MODO PRODUCTO: usamos directamente código de producto y lote,
+        # sin pasar por Zona/Subzona.
+        zona_nombre = zona_in or None      # código de producto
+        subzona_nombre = sub_in or None    # número de lote
+
+    # Obtener filas base desde la vista/consulta principal
     data = _resumen_rows(
         zona_nombre=zona_nombre,
         subzona_nombre=subzona_nombre,
@@ -463,14 +472,31 @@ def resumen_datos_json(request):
         modo=modo,
     )
 
-    return JsonResponse({
-        "data": data,
-        "zona": zona_nombre,
-        "subzona": subzona_nombre,
-        "modo": modo,
-        "page": page,
-        "page_size": page_sz,
-    })
+    # Aplicar filtro por estado si corresponde
+    if estado_filtro == "pendiente":
+        data = [
+            d
+            for d in data
+            if str(d.get("estado", "")).lower().startswith("pendiente")
+        ]
+    elif estado_filtro == "ok":
+        data = [
+            d
+            for d in data
+            if str(d.get("estado", "")).lower().startswith("ok")
+        ]
+
+    return JsonResponse(
+        {
+            "data": data,
+            "zona": zona_nombre,
+            "subzona": subzona_nombre,
+            "modo": modo,
+            "page": page,
+            "page_size": page_sz,
+            "estado": estado_filtro,
+        }
+    )
 
 
 def resumen_inventario(request):
@@ -577,44 +603,205 @@ from django.http import HttpResponse
 from datetime import datetime
 
 def exportar_resumen_excel(request):
-    zona = request.GET.get("zona")
-    subzona = request.GET.get("subzona")
-    modo = request.GET.get("modo", "ubicacion")
+    """
+    Exporta a Excel el resumen de conteos.
+    Parámetros GET esperados:
 
-    # Usa el mismo generador del resumen (sin paginar)
-    if not zona and not subzona:
-        data = _resumen_rows(page=1, page_size=999999, modo=modo)
+      - modo:   'ubicacion' (por defecto) o 'producto'
+      - vista:  'detalle' (default) o 'producto_general'
+      - alcance: 'actual' (default) o 'completo'
+      - zona / subzona:
+          * En modo 'ubicacion': nombres (o ids) de Zona/Subzona
+          * En modo 'producto': código de producto / número de lote
+      - estado: '' | 'pendiente' | 'ok' (solo se aplica en vista = 'detalle' y alcance = 'actual')
+    """
+    modo     = _param(request, "modo", "ubicacion")
+    vista    = _param(request, "vista", "detalle")          # 'detalle' | 'producto_general'
+    alcance  = _param(request, "alcance", "actual")         # 'actual' | 'completo'
+    zona_in  = _param(request, "zona", None)
+    sub_in   = _param(request, "subzona", None)
+    estado   = (_param(request, "estado", "") or "").lower()
+
+    # ------------------------------------------------------
+    # 1) Obtener filas base según vista/alcance/modo
+    # ------------------------------------------------------
+    if vista == "producto_general":
+        # Siempre trabajamos sobre el modo producto (producto + lote),
+        # porque esta vista es un agregado global por Producto/Lote.
+        modo_query = "producto"
+
+        if alcance == "completo":
+            zona_nombre = None      # sin filtro de producto
+            subzona_nombre = None   # sin filtro de lote
+        else:
+            # Filtro actual: producto (zona_in) + lote (sub_in)
+            zona_nombre = zona_in or None
+            subzona_nombre = sub_in or None
+
+        # Traemos TODO (sin paginar) y luego agregamos por producto+lote
+        rows = _resumen_rows(
+            zona_nombre=zona_nombre,
+            subzona_nombre=subzona_nombre,
+            page=1,
+            page_size=999_999,
+            modo=modo_query,
+        )
+
+        # Agregar por (producto, lote) sumando Sistema, G1..G4
+        agg = {}
+        for r in rows:
+            prod = r.get("producto") or ""
+            lote = r.get("lote") or ""
+            key = (prod, lote)
+
+            if key not in agg:
+                agg[key] = {
+                    "producto": prod,
+                    "lote": lote,
+                    "sistema": Decimal("0"),
+                    "g1": Decimal("0"),
+                    "g2": Decimal("0"),
+                    "g3": Decimal("0"),
+                    "g4": Decimal("0"),
+                }
+
+            acc = agg[key]
+            for field in ("sistema", "g1", "g2", "g3", "g4"):
+                v = r.get(field)
+                if v not in (None, ""):
+                    try:
+                        acc[field] += Decimal(str(v))
+                    except Exception:
+                        # Si algo raro llega, lo ignoramos en la suma
+                        pass
+
+        data_export = list(agg.values())
+        ws_title = "Producto General"
+        headers = ["Producto", "Lote", "Sistema", "G1", "G2", "G3", "G4"]
+
     else:
-        data = _resumen_rows(zona, subzona, page=1, page_size=999999, modo=modo)
+        # ---------------------------
+        # VISTA DETALLE (normal)
+        # ---------------------------
+        modo_query = modo
 
+        if modo_query == "ubicacion":
+            # En modo ubicación, zona/subzona son nombres o ids de Zona/Subzona.
+            # Reutilizamos la misma lógica que el JSON para resolver defaults.
+            zona_obj, subzona_obj, zona_nombre, subzona_nombre = (
+                _coalesce_zona_subzona_from_params(zona_in, sub_in)
+            )
+
+            if alcance == "completo":
+                # Ignorar filtros de zona/subzona para sacar TODO el modelo
+                zona_nombre = None
+                subzona_nombre = None
+        else:
+            # MODO PRODUCTO: zona/subzona son código de producto / lote.
+            if alcance == "completo":
+                zona_nombre = None
+                subzona_nombre = None
+            else:
+                zona_nombre = zona_in or None
+                subzona_nombre = sub_in or None
+
+        rows = _resumen_rows(
+            zona_nombre=zona_nombre,
+            subzona_nombre=subzona_nombre,
+            page=1,
+            page_size=999_999,
+            modo=modo_query,
+        )
+
+        # Filtro por estado SOLO si:
+        #   - estamos en vista detalle
+        #   - y alcance = 'actual' (respeta lo que ve el usuario)
+        if alcance == "actual":
+            if estado == "pendiente":
+                rows = [
+                    r
+                    for r in rows
+                    if str(r.get("estado", "")).lower().startswith("pendiente")
+                ]
+            elif estado == "ok":
+                rows = [
+                    r
+                    for r in rows
+                    if str(r.get("estado", "")).lower().startswith("ok")
+                ]
+
+        data_export = rows
+        ws_title = "Resumen Conteos"
+        headers = [
+            "Ubicación",
+            "Producto",
+            "Lote",
+            "Sistema",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "Δ (Consenso − Sistema)",
+            "Estado",
+        ]
+
+    # ------------------------------------------------------
+    # 2) Construir el Excel
+    # ------------------------------------------------------
     wb = Workbook()
     ws = wb.active
-    ws.title = "Resumen Conteos"
+    ws.title = ws_title
 
-    headers = ["Ubicación","Producto","Lote","Sistema","G1","G2","G3","G4","Δ (Consenso − Sistema)","Estado"]
+    # Encabezados
     ws.append(headers)
 
-    for r in data:
-        ws.append([
-            r.get("ubicacion"),
-            r.get("producto"),
-            r.get("lote"),
-            r.get("sistema"),
-            r.get("g1"),
-            r.get("g2"),
-            r.get("g3"),
-            r.get("g4"),
-            r.get("delta"),
-            r.get("estado"),
-        ])
+    # Filas de datos
+    if vista == "producto_general":
+        # Producto | Lote | Sistema | G1 | G2 | G3 | G4
+        for r in data_export:
+            ws.append([
+                r.get("producto"),
+                r.get("lote"),
+                r.get("sistema"),
+                r.get("g1"),
+                r.get("g2"),
+                r.get("g3"),
+                r.get("g4"),
+            ])
+    else:
+        # Vista detalle (ubicación / producto)
+        for r in data_export:
+            ws.append([
+                r.get("ubicacion"),
+                r.get("producto"),
+                r.get("lote"),
+                r.get("sistema"),
+                r.get("g1"),
+                r.get("g2"),
+                r.get("g3"),
+                r.get("g4"),
+                r.get("delta"),
+                r.get("estado"),
+            ])
 
-    # auto ancho de columnas
+    # Auto-ajustar ancho de columnas
     for col in ws.columns:
         max_len = max(len(str(c.value or "")) for c in col)
         ws.column_dimensions[col[0].column_letter].width = max_len + 2
 
-    resp = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    fn = f"ResumenConteos_{zona or 'ALL'}_{subzona or 'ALL'}_{datetime.now():%Y%m%d_%H%M}.xlsx"
+    # ------------------------------------------------------
+    # 3) Respuesta HTTP con nombre de archivo descriptivo
+    # ------------------------------------------------------
+    resp = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # Para el nombre del archivo usamos los parámetros crudos,
+    # no los "resueltos" (es más transparente para el usuario)
+    zona_tag = zona_in or "ALL"
+    sub_tag = sub_in or "ALL"
+
+    fn = f"Resumen_{vista}_{modo}_{alcance}_{zona_tag}_{sub_tag}_{datetime.now():%Y%m%d_%H%M}.xlsx"
     resp["Content-Disposition"] = f'attachment; filename="{fn}"'
     wb.save(resp)
     return resp
